@@ -104,3 +104,22 @@ The next implementation task is:
 ```text
 Phase 1 — Three-Phase Unbalanced Feeder Model
 ```
+
+
+## Phase 1 implemented
+
+The package now includes the Phase 1 feeder model:
+
+- `build_feeder_network.m`
+- `bfs_power_flow.m`
+- `compute_pq_indices.m`
+- `assign_households.m`
+- Phase 1 validation tests
+
+Run validation from MATLAB:
+
+```matlab
+cd EV_Hosting_DSM
+run startup.m
+main([], 'validate')
+```
