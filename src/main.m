@@ -1,5 +1,5 @@
 function main(config_path, varargin)
-% MAIN Top-level runner for implemented Phase 0 and Phase 1 layers.
+% MAIN Top-level runner for implemented Phase 0, Phase 1, and Phase 2 layers.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -56,5 +56,18 @@ end
 fprintf('[main] Phase 1 complete: feeder built, households assigned, BFS and PQ smoke test executed.\n');
 fprintf('[main] Phase 1 smoke metrics: Vmin=%.4f pu | max VUF=%.3f%% | max TL=%.2f%%.\n', ...
     pq.V_min_pu, max(pq.VUF_pct), max(pq.TL_pct));
-fprintf('[main] Next implementation step: Phase 2 behavior-driven load model.\n');
+
+% --- Section 3: Phase 2 behavior-driven load layer smoke test ---
+stepsPerDay = 24 * 60 / cfg.simulation.dt_min;
+cal_day.daytype = cal_struct.daytype(1);
+cal_day.season = cal_struct.season(1);
+cal_day.is_ramadan = cal_struct.is_ramadan(1);
+weather_day = weather.temp_C(1:stepsPerDay);
+hh = simulate_household(1, assignment, data, weather_day, cal_day, cfg);
+daily_kwh = sum(hh.p_total_w) * cfg.simulation.dt_hr / 1000;
+
+fprintf('[main] Phase 2 complete: one-household behavior-driven load smoke test executed.\n');
+fprintf('[main] Phase 2 smoke metrics: daily energy=%.2f kWh | HVAC=%.2f kWh | controllable runs=%d | EV present=%d.\n', ...
+    daily_kwh, sum(hh.p_hvac_w) * cfg.simulation.dt_hr / 1000, hh.flexibility.count, hh.ev.present);
+fprintf('[main] Next implementation step: Phase 3 pricing engine.\n');
 end

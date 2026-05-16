@@ -1,46 +1,20 @@
 # EV_Hosting_DSM MATLAB Project
 
-This package implements the first project deliverable and **Phase 0 — Configuration & IO Layer**.
+MATLAB project for the M.Sc. thesis implementation:
 
-Implemented checklist items:
+**AI-Driven Demand-Side Management for Enhancing EV Charging Hosting Capacity and Power Quality in a Radial Distribution Feeder**
 
-- [x] All config JSON files created and validated
-- [x] Survey workbook prepared as a single final Phase 0 workbook
-- [x] Phase 0 IO functions implemented and testable
+Implemented status in this package:
 
-## Included
+- [x] First deliverable: config JSON files created and validated
+- [x] Single final survey workbook prepared: `data/survey/Household_Energy_Survey.xlsx`
+- [x] Phase 0 - Configuration and IO Layer
+- [x] Phase 1 - Three-Phase Unbalanced Feeder Model
+- [x] Phase 2 - Behavior-Driven Load Model
 
-- `EV_Hosting_DSM.prj` MATLAB project entry file
-- `config/default_config.json`
-- `config/feeder_params.json`
-- `config/scenario_configs/baseline0.json`
-- `config/scenario_configs/scenario0.json` through `scenario6.json`
-- `data/survey/Household_Energy_Survey.xlsx`
-- `src/io/config_loader.m`
-- `src/io/data_loader.m`
-- `src/io/daytype_calendar.m`
-- `src/io/get_weather.m`
-- `src/io/validate_feeder_params.m`
-- `tests/test_config_loader.m`
-- `tests/test_survey_schema.m`
-- `tests/test_phase0_io.m`
-- `tests/run_config_tests.m`
-- documentation under `docs/`
+## Validate the implemented phases
 
-## How to open
-
-1. Extract the ZIP.
-2. Open MATLAB R2022b or newer.
-3. Open `EV_Hosting_DSM.prj`.
-4. If MATLAB does not recognize the `.prj`, run:
-
-```matlab
-cd EV_Hosting_DSM
-run startup.m
-run setup/create_or_refresh_project.m
-```
-
-## How to validate Phase 0
+From MATLAB R2022b or newer:
 
 ```matlab
 cd EV_Hosting_DSM
@@ -48,19 +22,20 @@ run startup.m
 main([], 'validate')
 ```
 
-or:
+This runs:
 
-```matlab
-run_config_tests()
-```
+- `test_config_loader`
+- `test_survey_schema`
+- `test_phase0_io`
+- `test_phase1_feeder`
+- `test_bfs_power_flow`
+- `test_pq_indices`
+- `test_simulate_occupancy`
+- `test_ev_model`
+- `test_simulate_household`
+- `test_phase2_load_model`
 
-Expected final result:
-
-```text
-[run_config_tests] Step 1 + Phase 0 IO deliverables are valid. You can now start Phase 1 feeder modeling.
-```
-
-## How to run Phase 0 manually
+## Run a smoke workflow
 
 ```matlab
 cd EV_Hosting_DSM
@@ -68,58 +43,15 @@ run startup.m
 main()
 ```
 
-This loads:
+The smoke workflow loads config/survey/calendar/weather, builds the feeder, runs a BFS/PQ check, and simulates one behavior-driven household day.
 
-1. Configuration
-2. Survey data
-3. Egyptian day-type calendar
-4. Assiut weather data or synthetic fallback
+## Important notes
 
-Then it stops before Phase 1 feeder modeling.
-
-## Survey data
-
-The project uses a single normalized survey workbook:
-
-```text
-data/survey/Household_Energy_Survey.xlsx
-```
-
-No legacy workbook is included. The workbook contains all required Phase 0 sheets:
-
-```text
-Household
-Residents
-OccupancyPMF
-Activities
-Appliances
-HVAC_Thermal
-EV
-```
+- EV charging power is not injected into household load yet. Phase 2 exposes EV availability, SOC, charger limits, V2G capability, and harmonic metadata. Actual uncontrolled/controlled charging is applied in later scenario and DSM phases.
+- HVAC is included as a fixed load component in Phase 2.
+- Population simulation is available through `simulate_population` and caches output to `results/population_profiles.mat`.
+- No legacy survey workbook is included. The single source workbook is `data/survey/Household_Energy_Survey.xlsx`.
 
 ## Next step
 
-The next implementation task is:
-
-```text
-Phase 1 — Three-Phase Unbalanced Feeder Model
-```
-
-
-## Phase 1 implemented
-
-The package now includes the Phase 1 feeder model:
-
-- `build_feeder_network.m`
-- `bfs_power_flow.m`
-- `compute_pq_indices.m`
-- `assign_households.m`
-- Phase 1 validation tests
-
-Run validation from MATLAB:
-
-```matlab
-cd EV_Hosting_DSM
-run startup.m
-main([], 'validate')
-```
+Phase 3 - Pricing Engine.
