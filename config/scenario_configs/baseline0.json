@@ -1,0 +1,19 @@
+{
+  "_comment": "Baseline 0 - No EVs, no DSM",
+  "scenario": {
+    "id": -1,
+    "name": "Baseline 0",
+    "description": "No EVs, no DSM",
+    "ev_enabled": false,
+    "dsm_enabled": false,
+    "v2g_enabled": false,
+    "charging_control": "none"
+  },
+  "ev": {
+    "penetration_rate": 0.0,
+    "v2g_enabled": false
+  },
+  "dsm": {
+    "controller": "none"
+  }
+}

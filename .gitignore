@@ -1,0 +1,7 @@
+*.asv
+*.mat
+results/figures/*
+results/tables/*
+data/weather/*.csv
+!**/.gitkeep
+/results/

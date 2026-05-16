@@ -1,0 +1,130 @@
+{
+  "_comment": "Egyptian LV Radial Feeder - 380/220V 50Hz Physical Parameters",
+  "transformers": [
+    {
+      "id": "T1",
+      "kva": 100,
+      "vhv_kv": 11.0,
+      "vlv_kv": 0.38,
+      "r_pu": 0.013,
+      "x_pu": 0.045
+    },
+    {
+      "id": "T2",
+      "kva": 160,
+      "vhv_kv": 11.0,
+      "vlv_kv": 0.38,
+      "r_pu": 0.011,
+      "x_pu": 0.04
+    },
+    {
+      "id": "T3",
+      "kva": 100,
+      "vhv_kv": 11.0,
+      "vlv_kv": 0.38,
+      "r_pu": 0.013,
+      "x_pu": 0.045
+    },
+    {
+      "id": "T4",
+      "kva": 160,
+      "vhv_kv": 11.0,
+      "vlv_kv": 0.38,
+      "r_pu": 0.011,
+      "x_pu": 0.04
+    },
+    {
+      "id": "T5",
+      "kva": 63,
+      "vhv_kv": 11.0,
+      "vlv_kv": 0.38,
+      "r_pu": 0.016,
+      "x_pu": 0.05
+    }
+  ],
+  "branches": [
+    {
+      "id": "B1",
+      "from": "T1_sec",
+      "to": "Bus_1A",
+      "length_m": 80,
+      "conductor": "ACSR_50"
+    },
+    {
+      "id": "B2",
+      "from": "Bus_1A",
+      "to": "Bus_1B",
+      "length_m": 60,
+      "conductor": "ACSR_35"
+    },
+    {
+      "id": "B3",
+      "from": "T2_sec",
+      "to": "Bus_2A",
+      "length_m": 100,
+      "conductor": "ACSR_50"
+    },
+    {
+      "id": "B4",
+      "from": "Bus_2A",
+      "to": "Bus_2B",
+      "length_m": 80,
+      "conductor": "ACSR_50"
+    },
+    {
+      "id": "B5",
+      "from": "T3_sec",
+      "to": "Bus_3A",
+      "length_m": 120,
+      "conductor": "ACSR_35"
+    },
+    {
+      "id": "B6",
+      "from": "T4_sec",
+      "to": "Bus_4A",
+      "length_m": 90,
+      "conductor": "ACSR_50"
+    },
+    {
+      "id": "B7",
+      "from": "Bus_4A",
+      "to": "Bus_4B",
+      "length_m": 70,
+      "conductor": "ACSR_35"
+    },
+    {
+      "id": "B8",
+      "from": "T5_sec",
+      "to": "Bus_5A",
+      "length_m": 150,
+      "conductor": "ACSR_25"
+    }
+  ],
+  "conductors": {
+    "ACSR_50": {
+      "r_ohm_per_km": 0.641,
+      "x_ohm_per_km": 0.338,
+      "i_max_a": 150
+    },
+    "ACSR_35": {
+      "r_ohm_per_km": 0.868,
+      "x_ohm_per_km": 0.35,
+      "i_max_a": 120
+    },
+    "ACSR_25": {
+      "r_ohm_per_km": 1.2,
+      "x_ohm_per_km": 0.37,
+      "i_max_a": 95
+    },
+    "neutral": {
+      "r_ohm_per_km": 1.2,
+      "x_ohm_per_km": 0.37,
+      "multiplier": 1.0
+    }
+  },
+  "base_values": {
+    "s_base_kva": 100,
+    "v_base_kv": 0.38,
+    "v_source_pu": 1.0
+  }
+}

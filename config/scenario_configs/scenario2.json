@@ -1,0 +1,21 @@
+{
+  "_comment": "Scenario 2 - Slow vs fast uncontrolled EV charging comparison",
+  "scenario": {
+    "id": 2,
+    "name": "Scenario 2",
+    "description": "Slow versus fast uncontrolled charging comparison",
+    "ev_enabled": true,
+    "dsm_enabled": false,
+    "v2g_enabled": false,
+    "charging_control": "uncontrolled",
+    "compare_charger_types": true
+  },
+  "ev": {
+    "penetration_rate": 0.2,
+    "charger_type": "both",
+    "v2g_enabled": false
+  },
+  "dsm": {
+    "controller": "none"
+  }
+}

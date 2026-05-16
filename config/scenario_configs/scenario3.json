@@ -1,0 +1,19 @@
+{
+  "_comment": "Scenario 3 - MILP-controlled EV only",
+  "scenario": {
+    "id": 3,
+    "name": "Scenario 3",
+    "description": "MILP-controlled EV charging only",
+    "ev_enabled": true,
+    "dsm_enabled": true,
+    "v2g_enabled": false,
+    "charging_control": "milp_ev_only"
+  },
+  "ev": {
+    "penetration_rate": 0.2,
+    "v2g_enabled": false
+  },
+  "dsm": {
+    "controller": "milp_ev_only"
+  }
+}

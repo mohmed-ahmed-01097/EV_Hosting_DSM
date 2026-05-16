@@ -1,0 +1,19 @@
+{
+  "_comment": "Scenario 0 - No EVs, rule-based DSM",
+  "scenario": {
+    "id": 0,
+    "name": "Scenario 0",
+    "description": "No EVs with rule-based DSM",
+    "ev_enabled": false,
+    "dsm_enabled": true,
+    "v2g_enabled": false,
+    "charging_control": "none"
+  },
+  "ev": {
+    "penetration_rate": 0.0,
+    "v2g_enabled": false
+  },
+  "dsm": {
+    "controller": "rule_based"
+  }
+}

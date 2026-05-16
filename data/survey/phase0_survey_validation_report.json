@@ -1,0 +1,25 @@
+{
+  "output_workbook": "/mnt/data/EV_Hosting_DSM/data/survey/Household_Energy_Survey.xlsx",
+  "rows": {
+    "Household": 1000,
+    "Residents": 4340,
+    "OccupancyPMF": 48000,
+    "Activities": 8000,
+    "Appliances": 12506,
+    "HVAC_Thermal": 1000,
+    "EV": 1000
+  },
+  "max_pmf_error": 0.0,
+  "required_phase0_sheets": [
+    "Household",
+    "Residents",
+    "OccupancyPMF",
+    "Activities",
+    "Appliances",
+    "HVAC_Thermal",
+    "EV"
+  ],
+  "source_ev_households": 22,
+  "single_workbook_package": true,
+  "note": "Package contains one survey workbook only: data/survey/Household_Energy_Survey.xlsx"
+}

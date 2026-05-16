@@ -1,0 +1,19 @@
+{
+  "_comment": "Scenario 1 - Uncontrolled EV integration",
+  "scenario": {
+    "id": 1,
+    "name": "Scenario 1",
+    "description": "Uncontrolled EV integration",
+    "ev_enabled": true,
+    "dsm_enabled": false,
+    "v2g_enabled": false,
+    "charging_control": "uncontrolled"
+  },
+  "ev": {
+    "penetration_rate": 0.2,
+    "v2g_enabled": false
+  },
+  "dsm": {
+    "controller": "none"
+  }
+}

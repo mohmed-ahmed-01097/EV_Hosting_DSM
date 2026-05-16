@@ -1,0 +1,19 @@
+{
+  "_comment": "Scenario 5 - MILP-controlled household loads, EV charging, and V2G",
+  "scenario": {
+    "id": 5,
+    "name": "Scenario 5",
+    "description": "MILP-controlled loads, EV, and V2G",
+    "ev_enabled": true,
+    "dsm_enabled": true,
+    "v2g_enabled": true,
+    "charging_control": "milp_v2g"
+  },
+  "ev": {
+    "penetration_rate": 0.2,
+    "v2g_enabled": true
+  },
+  "dsm": {
+    "controller": "milp"
+  }
+}

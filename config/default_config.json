@@ -1,0 +1,192 @@
+{
+  "_comment": "EV Hosting Capacity DSM - Default Configuration",
+  "project_name": "EV_Hosting_DSM",
+  "location": {
+    "city": "Assiut",
+    "country": "Egypt",
+    "latitude": 27.1809,
+    "longitude": 31.1837
+  },
+  "country_code": "EG",
+  "simulation": {
+    "start_date": "2025-01-01",
+    "end_date": "2025-12-31",
+    "dt_min": 15,
+    "mode": "representative",
+    "representative_weeks": {
+      "summer_weekday": {
+        "start": "2025-07-07",
+        "end": "2025-07-11"
+      },
+      "summer_weekend": {
+        "start": "2025-07-12",
+        "end": "2025-07-13"
+      },
+      "winter_weekday": {
+        "start": "2025-01-06",
+        "end": "2025-01-10"
+      },
+      "winter_weekend": {
+        "start": "2025-01-11",
+        "end": "2025-01-12"
+      }
+    },
+    "fsm_power_cv_default": 0.1
+  },
+  "feeder": {
+    "nominal_voltage_kv": 0.38,
+    "frequency_hz": 50,
+    "num_households": 100,
+    "num_transformer_zones": 5,
+    "households_per_zone": [
+      20,
+      22,
+      18,
+      22,
+      18
+    ],
+    "seed_phase_assignment": 42
+  },
+  "ev": {
+    "penetration_rate": 0.2,
+    "charger_type": "both",
+    "slow_kw": 3.7,
+    "fast_kw": 7.4,
+    "v2g_enabled": true,
+    "eta_charge": 0.95,
+    "eta_discharge": 0.95,
+    "soc_min_pct": 20,
+    "soc_target_pct": 90,
+    "soc_v2g_reserve_pct": 30,
+    "battery_kwh_options": [
+      40,
+      60,
+      75
+    ],
+    "arrival_mean_hour": 18.0,
+    "arrival_std_hour": 1.5,
+    "departure_mean_hour": 7.5,
+    "departure_std_hour": 1.0
+  },
+  "pq_limits": {
+    "vuf_max_pct": 2.0,
+    "voltage_deviation_max_pct": 10.0,
+    "voltage_min_pu": 0.9,
+    "voltage_max_pu": 1.1,
+    "thdv_max_pct": 8.0,
+    "thdi_max_pct": 15.0,
+    "ncr_max_pct": 30.0,
+    "transformer_loading_max_pct": 100.0,
+    "iuf_max_pct": 10.0
+  },
+  "dsm": {
+    "controller": "milp",
+    "scheduling_horizon_steps": 96,
+    "max_coordination_iterations": 3,
+    "comfort_max_shift_min": {
+      "Washing_Machine": 180,
+      "Dishwasher": 180,
+      "EV_Charger": 240,
+      "Water_Heater": 60,
+      "Iron": 120
+    },
+    "comfort_weights": {
+      "Washing_Machine": 1.0,
+      "Dishwasher": 0.8,
+      "EV_Charger": 0.5,
+      "Water_Heater": 1.5,
+      "Iron": 1.2
+    }
+  },
+  "pricing": {
+    "active_methods": [
+      "Block",
+      "Flat",
+      "TOU",
+      "RTP",
+      "Seasonal",
+      "CPP",
+      "RGDP"
+    ],
+    "main_method": "Block",
+    "flat_rate_egp_per_kwh": 0.5,
+    "block_slabs_kwh": [
+      50,
+      100,
+      200,
+      350,
+      650
+    ],
+    "block_rates_egp": [
+      0.25,
+      0.45,
+      0.65,
+      0.95,
+      1.25,
+      1.65
+    ],
+    "block_billing": "inclining",
+    "tou_rates_24h": [
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.45,
+      0.65,
+      0.65,
+      0.45,
+      0.45,
+      0.45,
+      0.65,
+      0.65,
+      0.65,
+      0.65,
+      0.95,
+      0.95,
+      1.25,
+      1.25,
+      1.25,
+      0.95,
+      0.65,
+      0.45
+    ],
+    "rtp_volatility": 0.3,
+    "rtp_base_egp": 0.65,
+    "seasonal_summer_multiplier": 1.3,
+    "seasonal_winter_multiplier": 0.85,
+    "cpp_adder_egp_per_kwh": 1.5,
+    "cpp_threshold_kw": 0.85,
+    "rgdp_renewable_fraction_summer": 0.18,
+    "rgdp_renewable_fraction_winter": 0.12,
+    "rgdp_demand_rate_egp_per_kw_day": 12.0
+  },
+  "hvac": {
+    "use": true,
+    "duty_type": "piecewise",
+    "summer_setpoint_c": 24.0,
+    "winter_setpoint_c": 20.0,
+    "delta_comfort_band_c": 2.0,
+    "power_per_unit_kw": 1.75,
+    "cop_summer": 2.8,
+    "k_thermal_mass": 0.85
+  },
+  "activities": [
+    "Cook",
+    "Sleep",
+    "TV",
+    "Laundry",
+    "Work_from_home",
+    "Shower",
+    "Iron",
+    "Dishwasher",
+    "Computer"
+  ],
+  "seed": 42,
+  "output_dir": "results",
+  "survey_paths": {
+    "xlsx": "data/survey/Household_Energy_Survey.xlsx",
+    "mat": "data/survey/Household_Energy_Survey.mat"
+  }
+}

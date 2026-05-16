@@ -1,0 +1,20 @@
+{
+  "_comment": "Scenario 6 - Full hierarchical AI-DSM",
+  "scenario": {
+    "id": 6,
+    "name": "Scenario 6",
+    "description": "MILP plus feeder supervisor with V2G enabled",
+    "ev_enabled": true,
+    "dsm_enabled": true,
+    "v2g_enabled": true,
+    "charging_control": "supervised_milp"
+  },
+  "ev": {
+    "penetration_rate": 0.2,
+    "v2g_enabled": true
+  },
+  "dsm": {
+    "controller": "milp",
+    "max_coordination_iterations": 3
+  }
+}
