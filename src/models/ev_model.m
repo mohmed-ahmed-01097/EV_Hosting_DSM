@@ -37,6 +37,11 @@ ev.eta_c = cfg.ev.eta_charge;
 ev.eta_d = cfg.ev.eta_discharge;
 ev.available_steps = emptyAvailable;
 ev.energy_needed_wh = 0;
+ev.soc_initial_raw = NaN;
+ev.feasibility_adjusted = false;
+ev.min_charge_hr = 0;
+ev.available_hr = 0;
+ev.feasible_to_target = true;
 ev.charger_type = char(lower(string(charger_type)));
 ev.harmonic_spectrum = [1.0, 0.70, 0.40, 0.25, 0.15, 0.10, 0.08];
 ev.harmonic_orders = [1, 3, 5, 7, 9, 11, 13];
@@ -87,16 +92,29 @@ if strcmpi(ev.charger_type, 'v2g') && cfg.ev.v2g_enabled
     ev.P_v2g_max_w = ev.P_charge_max_w;
 end
 
-ev.energy_needed_wh = max(0, (ev.soc_target - ev.soc_initial) * ev.battery_kwh * 1000 / ev.eta_c);
-
-% --- Section 4: Availability vector and feasibility warning ---
+% --- Section 4: Availability vector and feasibility conditioning ---
+% The raw stochastic draw can create an infeasible case, especially for
+% 3.7 kW slow chargers with large batteries and a short overnight window.
+% Instead of issuing repeated warnings during population simulation, condition
+% the initial SOC upward to the minimum physically feasible value. This keeps
+% the scenario feasible while preserving stochastic EV timing and charger type.
 ev.available_steps(ev.arrival_step:stepsPerDay) = true;
 dtHr = cfg.simulation.dt_min / 60;
 availableHr = (stepsPerDay - ev.arrival_step + 1 + ev.departure_step) * dtHr;
-minChargeHr = ev.energy_needed_wh / max(ev.P_charge_max_w, 1e-9);
-if minChargeHr > availableHr * 1.1
-    warning('ev_model:insufficientChargeWindow', ...
-        'Insufficient time to charge EV to target SOC (need %.1f h, have %.1f h).', ...
-        minChargeHr, availableHr);
+maxGridEnergyWh = ev.P_charge_max_w * availableHr;
+maxBatteryEnergyWh = maxGridEnergyWh * ev.eta_c;
+socRequiredForFeasibility = ev.soc_target - maxBatteryEnergyWh / max(ev.battery_kwh * 1000, 1e-9);
+socLowerBound = max(cfg.ev.soc_min_pct / 100, socRequiredForFeasibility + 0.01);
+
+ev.soc_initial_raw = ev.soc_initial;
+ev.feasibility_adjusted = false;
+if ev.soc_initial < socLowerBound
+    ev.soc_initial = min(ev.soc_target, socLowerBound);
+    ev.feasibility_adjusted = true;
 end
+
+ev.energy_needed_wh = max(0, (ev.soc_target - ev.soc_initial) * ev.battery_kwh * 1000 / ev.eta_c);
+ev.min_charge_hr = ev.energy_needed_wh / max(ev.P_charge_max_w, 1e-9);
+ev.available_hr = availableHr;
+ev.feasible_to_target = ev.min_charge_hr <= availableHr + 1e-9;
 end

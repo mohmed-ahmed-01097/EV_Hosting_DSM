@@ -31,7 +31,8 @@ stepsPerDay = 24 * 60 / cfg.simulation.dt_min;
 Tsteps = cfg.simulation.Tsteps;
 numDays = cfg.simulation.horizon_days;
 cacheFile = fullfile(cfg.output_dir, 'population_profiles.mat');
-configHash = build_population_hash(cfg, assignment);
+modelVersion = 'phase2_ev_feasible_v2';
+configHash = build_population_hash(cfg, assignment, modelVersion);
 
 if isfile(cacheFile)
     cached = load(cacheFile, 'pop');
@@ -79,6 +80,7 @@ end
 
 % --- Section 4: Metadata and cache save ---
 pop.metadata.config_hash = configHash;
+pop.metadata.model_version = modelVersion;
 pop.metadata.created_on = datestr(now, 31);
 pop.metadata.dt_min = cfg.simulation.dt_min;
 pop.metadata.num_households = H;
@@ -99,10 +101,10 @@ calDay.is_ramadan = calStruct.is_ramadan(idx);
 calDay.timestamp = calStruct.timestamps(idx);
 end
 
-function hash = build_population_hash(cfg, assignment)
+function hash = build_population_hash(cfg, assignment, modelVersion)
 % BUILD_POPULATION_HASH Lightweight cache key based on key settings.
-raw = sprintf('%s|%s|%d|%d|%d|%.4f|%d', cfg.simulation.start_date, ...
+raw = sprintf('%s|%s|%d|%d|%d|%.4f|%d|%s', cfg.simulation.start_date, ...
     cfg.simulation.end_date, cfg.simulation.dt_min, cfg.simulation.Tsteps, ...
-    cfg.feeder.num_households, cfg.ev.penetration_rate, sum(assignment.phase_id));
+    cfg.feeder.num_households, cfg.ev.penetration_rate, sum(assignment.phase_id), modelVersion);
 hash = char(matlab.lang.makeValidName(['h_' raw]));
 end

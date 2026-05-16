@@ -28,6 +28,8 @@ evSlow = draw_present_ev('slow', 60, calDay, cfg);
 assert_pass(abs(evSlow.P_charge_max_w - 3700) < 1e-9, 'Slow charger max power = 3700 W');
 assert_pass(evSlow.energy_needed_wh >= 0, sprintf('EV energy_needed is nonnegative: %.1f Wh', evSlow.energy_needed_wh));
 assert_pass(any(evSlow.available_steps), 'Present EV has an availability window');
+assert_pass(evSlow.feasible_to_target, sprintf('Slow EV target is feasible: need %.2f h, have %.2f h', evSlow.min_charge_hr, evSlow.available_hr));
+assert_pass(evSlow.energy_needed_wh <= evSlow.P_charge_max_w * evSlow.available_hr + 1e-6, 'EV required grid energy fits available charge window');
 
 evV2G = draw_present_ev('v2g', 75, calDay, cfg);
 assert_pass(abs(evV2G.P_v2g_max_w - evV2G.P_charge_max_w) < 1e-9, 'V2G discharge max equals charge max');

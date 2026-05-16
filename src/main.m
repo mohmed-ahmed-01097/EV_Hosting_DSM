@@ -1,18 +1,24 @@
 function main(config_path, varargin)
-% MAIN Top-level runner for implemented Phase 0 through Phase 4 layers.
+% MAIN Top-level runner for implemented Phase 0 through Phase 5 layers.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
 %
 % Inputs:
 %   config_path (char/string, optional): JSON config path.
-%   varargin: use 'validate' to run validation tests.
+%   varargin:
+%       'validate'              - run validation tests.
+%       'scenario', N           - run one scenario ID N (-1,0..6).
+%       'scenarios', [ids]      - run selected scenario IDs.
+%       'all_scenarios'         - run Baseline 0 and Scenarios 0..6.
 %
 % Outputs:
-%   None.
+%   None. Scenario runs are saved to results/scenario_results.mat.
 %
 % Example:
 %   main([], 'validate')
+%   main([], 'scenario', 4)
+%   main([], 'all_scenarios')
 %   main('config/scenario_configs/scenario1.json')
 
 if nargin < 1
@@ -29,6 +35,8 @@ if any(strcmpi(varargin, 'validate'))
     run_config_tests();
     return;
 end
+
+scenarioIds = parse_scenario_request(varargin);
 
 % --- Section 1: Phase 0 IO layer ---
 cfg = config_loader(config_path);
@@ -72,7 +80,7 @@ fprintf('[main] Phase 2 smoke metrics: daily energy=%.2f kWh | HVAC=%.2f kWh | c
 
 % --- Section 4: Phase 3 pricing engine smoke test ---
 L_demo_w = repmat(hh.p_total_w, 1, 2);
-L_demo_w(:,2) = L_demo_w(:,2) + 500;  % synthetic higher-consumption household
+L_demo_w(:,2) = L_demo_w(:,2) + 500;
 costs = compute_costs(cfg, L_demo_w, cfg.simulation.tvec_min(1:stepsPerDay), cal_struct);
 
 fprintf('[main] Phase 3 complete: seven-tariff pricing smoke test executed.\n');
@@ -85,5 +93,40 @@ schedule = run_household_milp(hh, price_demo, cfg);
 fprintf('[main] Phase 4 complete: household DSM scheduling smoke test executed.\n');
 fprintf('[main] Phase 4 smoke metrics: method=%s | cost=%.2f EGP | comfort=%.3f | EV max charge=%.1f W.\n', ...
     schedule.method, schedule.cost_EGP, schedule.comfort_idx, max(schedule.p_ev));
-fprintf('[main] Next implementation step: Phase 5 scenarios.\n');
+
+% --- Section 6: Phase 5 scenario execution when requested ---
+if ~isempty(scenarioIds)
+    pop = load_or_simulate_population(cfg, data, assignment, net, cal_struct, weather);
+    all_results = run_all_scenarios(cfg, data, net, assignment, pop, cal_struct, weather, scenarioIds); %#ok<NASGU>
+    outFile = fullfile(cfg.output_dir, 'scenario_results.mat');
+    save(outFile, 'all_results', 'scenarioIds', '-v7.3');
+    fprintf('[main] Phase 5 complete: scenario results saved to %s\n', outFile);
+else
+    fprintf('[main] Phase 5 scenario runners are implemented. Use main([], ''scenario'', 4) or main([], ''all_scenarios'') to execute them.\n');
+end
+end
+
+function scenarioIds = parse_scenario_request(args)
+% PARSE_SCENARIO_REQUEST Parse scenario-related varargin.
+scenarioIds = [];
+if any(strcmpi(args, 'all_scenarios'))
+    scenarioIds = [-1 0 1 2 3 4 5 6];
+    return;
+end
+idx = find(strcmpi(args, 'scenario'), 1, 'first');
+if ~isempty(idx) && idx < numel(args)
+    scenarioIds = double(args{idx + 1});
+    return;
+end
+idx = find(strcmpi(args, 'scenarios'), 1, 'first');
+if ~isempty(idx) && idx < numel(args)
+    scenarioIds = double(args{idx + 1});
+end
+end
+
+function pop = load_or_simulate_population(cfg, data, assignment, net, cal_struct, weather)
+% LOAD_OR_SIMULATE_POPULATION Load a versioned cache or run Phase 2 population model.
+% Delegate cache handling to simulate_population so stale caches created by older
+% EV feasibility logic are automatically invalidated.
+pop = simulate_population(cfg, data, assignment, net, cal_struct, weather);
 end

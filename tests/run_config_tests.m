@@ -1,5 +1,5 @@
 function run_config_tests()
-% RUN_CONFIG_TESTS Run Step 1 and Phase 0 through Phase 4 tests.
+% RUN_CONFIG_TESTS Run Step 1 and Phase 0 through Phase 5 tests.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -33,6 +33,7 @@ test_pricing();
 test_phase3_pricing();
 test_milp();
 test_phase4_dsm();
+test_phase5_scenarios();
 
-fprintf('\n[run_config_tests] Step 1 + Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 deliverables are valid. You can now start Phase 5 scenarios.\n');
+fprintf('\n[run_config_tests] Step 1 + Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 deliverables are valid. You can now start Phase 6 visualization.\n');
 end

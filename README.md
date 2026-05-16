@@ -13,6 +13,7 @@ Implemented status in this package:
 - [x] Phase 2 - Behavior-Driven Load Model
 - [x] Phase 3 - Pricing Engine
 - [x] Phase 4 - DSM Controller
+- [x] Phase 5 - Scenario Execution Layer
 
 ## Validate the implemented phases
 
@@ -40,6 +41,7 @@ This runs:
 - `test_phase3_pricing`
 - `test_milp`
 - `test_phase4_dsm`
+- `test_phase5_scenarios`
 
 ## Run a smoke workflow
 
@@ -49,18 +51,28 @@ run startup.m
 main()
 ```
 
-The smoke workflow loads config/survey/calendar/weather, builds the feeder, runs a BFS/PQ check, simulates one behavior-driven household day, computes tariffs, and runs one DSM household schedule.
+The smoke workflow loads config/survey/calendar/weather, builds the feeder, runs a BFS/PQ check, simulates one behavior-driven household day, computes tariffs, and runs one DSM household schedule. Phase 5 scenarios can be executed explicitly using the commands below.
 
 ## Important notes
 
-- EV charging power is scheduled by the Phase 4 DSM layer and will be injected into feeder scenarios in Phase 5.
+- EV charging power is injected and scheduled in the Phase 5 scenario layer using Phase 4 controllers.
 - HVAC is included as a fixed load component in Phase 2.
 - Population simulation is available through `simulate_population` and caches output to `results/population_profiles.mat`.
 - No legacy survey workbook is included. The single source workbook is `data/survey/Household_Energy_Survey.xlsx`.
 
+## Run Phase 5 scenarios
+
+```matlab
+main([], scenario, 4)
+main([], scenarios, [-1 1 4 6])
+main([], all_scenarios)
+```
+
+Scenario outputs are saved to `results/scenario_results.mat`.
+
 ## Next step
 
-Phase 5 - Scenario execution layer.
+Phase 6 - Visualization layer.
 
 
 ## Phase 3 Implemented - Pricing Engine
@@ -121,6 +133,42 @@ src/dsm/comfort_index.m
 src/dsm/feeder_supervisor.m
 tests/test_milp.m
 tests/test_phase4_dsm.m
+```
+
+Run validation with:
+
+```matlab
+main([], 'validate')
+```
+
+
+## Phase 5 Implemented - Scenario Execution Layer
+
+This package implements Baseline 0 and Scenarios 0 through 6:
+
+- Baseline 0: no EVs, no DSM
+- Scenario 0: no EVs, rule-based DSM
+- Scenario 1: uncontrolled EV integration
+- Scenario 2: slow vs fast uncontrolled EV comparison
+- Scenario 3: MILP-controlled EV only
+- Scenario 4: MILP-controlled loads plus EV
+- Scenario 5: MILP-controlled loads plus EV plus V2G
+- Scenario 6: full hierarchical AI-DSM using the feeder supervisor
+
+Key files:
+
+```text
+src/scenarios/run_baseline0.m
+src/scenarios/run_scenario0.m
+src/scenarios/run_scenario1.m
+src/scenarios/run_scenario2.m
+src/scenarios/run_scenario3.m
+src/scenarios/run_scenario4.m
+src/scenarios/run_scenario5.m
+src/scenarios/run_scenario6.m
+src/scenarios/run_all_scenarios.m
+src/scenarios/run_scenario_core.m
+tests/test_phase5_scenarios.m
 ```
 
 Run validation with:
