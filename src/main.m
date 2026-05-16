@@ -1,5 +1,5 @@
 function main(config_path, varargin)
-% MAIN Top-level runner for implemented Phase 0 through Phase 3 layers.
+% MAIN Top-level runner for implemented Phase 0 through Phase 4 layers.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -78,5 +78,12 @@ costs = compute_costs(cfg, L_demo_w, cfg.simulation.tvec_min(1:stepsPerDay), cal
 fprintf('[main] Phase 3 complete: seven-tariff pricing smoke test executed.\n');
 fprintf('[main] Phase 3 smoke metrics: Flat bills=[%.2f %.2f] EGP | Block bills=[%.2f %.2f] EGP.\n', ...
     costs.bill_total.Flat(1), costs.bill_total.Flat(2), costs.bill_total.Block(1), costs.bill_total.Block(2));
-fprintf('[main] Next implementation step: Phase 4 DSM controller.\n');
+
+% --- Section 5: Phase 4 DSM controller smoke test ---
+price_demo = pricing_tou(cfg, cfg.simulation.tvec_min(1:stepsPerDay), cal_struct);
+schedule = run_household_milp(hh, price_demo, cfg);
+fprintf('[main] Phase 4 complete: household DSM scheduling smoke test executed.\n');
+fprintf('[main] Phase 4 smoke metrics: method=%s | cost=%.2f EGP | comfort=%.3f | EV max charge=%.1f W.\n', ...
+    schedule.method, schedule.cost_EGP, schedule.comfort_idx, max(schedule.p_ev));
+fprintf('[main] Next implementation step: Phase 5 scenarios.\n');
 end
