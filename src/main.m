@@ -1,5 +1,5 @@
 function main(config_path, varargin)
-% MAIN Top-level runner placeholder for EV Hosting DSM thesis simulation.
+% MAIN Top-level runner for the implemented Phase 0 IO layer.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -32,7 +32,14 @@ end
 
 cfg = config_loader(config_path);
 
-fprintf('[main] Configuration loaded successfully.\n');
-fprintf('[main] This package implements Step 1 only: config JSON creation and validation.\n');
-fprintf('[main] Continue with Phase 0 IO functions before enabling full end-to-end simulation.\n');
+data = data_loader(cfg);
+cal_struct = daytype_calendar(cfg);
+weather = get_weather(cfg);
+
+fprintf('[main] Phase 0 complete: config, survey data, calendar, and weather loaded successfully.\n');
+fprintf('[main] Data rows: households=%d, residents=%d, occupancy=%d, activities=%d, appliances=%d, HVAC=%d, EV=%d.\n', ...
+    height(data.household), height(data.residents), height(data.occ_pmf), height(data.activities), ...
+    height(data.appliances), height(data.hvac), height(data.ev));
+fprintf('[main] Calendar/weather: steps=%d, weather source=%s.\n', cfg.simulation.Tsteps, weather.meta.source);
+fprintf('[main] Next implementation step: Phase 1 feeder model.\n');
 end

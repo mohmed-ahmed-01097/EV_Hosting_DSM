@@ -1,5 +1,5 @@
 function run_config_tests()
-% RUN_CONFIG_TESTS Run all Step 1 and pre-Phase 0 readiness tests.
+% RUN_CONFIG_TESTS Run all Step 1, survey, and Phase 0 IO tests.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -21,6 +21,7 @@ addpath(testsDir);
 
 test_config_loader();
 test_survey_schema();
+test_phase0_io();
 
-fprintf('\n[run_config_tests] Step 1 + survey readiness are valid. You can now implement Phase 0 IO functions.\n');
+fprintf('\n[run_config_tests] Step 1 + Phase 0 IO deliverables are valid. You can now start Phase 1 feeder modeling.\n');
 end
