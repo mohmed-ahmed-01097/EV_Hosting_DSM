@@ -1,5 +1,5 @@
 function main(config_path, varargin)
-% MAIN Top-level runner for implemented Phase 0, Phase 1, and Phase 2 layers.
+% MAIN Top-level runner for implemented Phase 0 through Phase 3 layers.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -69,5 +69,14 @@ daily_kwh = sum(hh.p_total_w) * cfg.simulation.dt_hr / 1000;
 fprintf('[main] Phase 2 complete: one-household behavior-driven load smoke test executed.\n');
 fprintf('[main] Phase 2 smoke metrics: daily energy=%.2f kWh | HVAC=%.2f kWh | controllable runs=%d | EV present=%d.\n', ...
     daily_kwh, sum(hh.p_hvac_w) * cfg.simulation.dt_hr / 1000, hh.flexibility.count, hh.ev.present);
-fprintf('[main] Next implementation step: Phase 3 pricing engine.\n');
+
+% --- Section 4: Phase 3 pricing engine smoke test ---
+L_demo_w = repmat(hh.p_total_w, 1, 2);
+L_demo_w(:,2) = L_demo_w(:,2) + 500;  % synthetic higher-consumption household
+costs = compute_costs(cfg, L_demo_w, cfg.simulation.tvec_min(1:stepsPerDay), cal_struct);
+
+fprintf('[main] Phase 3 complete: seven-tariff pricing smoke test executed.\n');
+fprintf('[main] Phase 3 smoke metrics: Flat bills=[%.2f %.2f] EGP | Block bills=[%.2f %.2f] EGP.\n', ...
+    costs.bill_total.Flat(1), costs.bill_total.Flat(2), costs.bill_total.Block(1), costs.bill_total.Block(2));
+fprintf('[main] Next implementation step: Phase 4 DSM controller.\n');
 end

@@ -55,3 +55,39 @@ The smoke workflow loads config/survey/calendar/weather, builds the feeder, runs
 ## Next step
 
 Phase 3 - Pricing Engine.
+
+
+## Phase 3 Implemented - Pricing Engine
+
+This package implements all seven thesis pricing methods:
+
+- Block tariff with Egyptian inclining marginal slab billing
+- Flat tariff
+- Time-of-Use (TOU)
+- Real-Time Pricing (RTP)
+- Seasonal pricing
+- Critical Peak Pricing (CPP)
+- Renewable Generation-Based Dynamic Pricing (RGDP)
+
+Key files:
+
+```text
+src/pricing/select_pricing.m
+src/pricing/build_pricing_context.m
+src/pricing/pricing_flat.m
+src/pricing/pricing_block.m
+src/pricing/pricing_tou.m
+src/pricing/pricing_rtp.m
+src/pricing/pricing_seasonal.m
+src/pricing/pricing_cpp.m
+src/pricing/pricing_rgdp.m
+src/pricing/compute_costs.m
+tests/test_pricing.m
+tests/test_phase3_pricing.m
+```
+
+Run validation with:
+
+```matlab
+main([], 'validate')
+```
