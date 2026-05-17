@@ -46,7 +46,7 @@ cfg.simulation.Tsteps = cfg.simulation.horizon_days * 24 * 60 / cfg.simulation.d
 cfg.simulation.tvec_min = (0:cfg.simulation.Tsteps - 1)' * cfg.simulation.dt_min;
 cfg.feeder.num_households = 5;
 cfg.feeder.households_per_zone = [1 1 1 1 1];
-cfg.output_dir = fullfile(tempdir, 'EV_Hosting_DSM_Phase2_Test_Results');
+cfg.output_dir = fullfile(cfg.output_dir, 'test_phase2');
 cfg.figs_dir = fullfile(cfg.output_dir, 'figures');
 cfg.tables_dir = fullfile(cfg.output_dir, 'tables');
 if ~exist(cfg.output_dir, 'dir'), mkdir(cfg.output_dir); end

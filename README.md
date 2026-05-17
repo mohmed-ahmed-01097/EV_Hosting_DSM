@@ -14,6 +14,7 @@ Implemented status in this package:
 - [x] Phase 3 - Pricing Engine
 - [x] Phase 4 - DSM Controller
 - [x] Phase 5 - Scenario Execution Layer
+- [x] Phase 6 - Visualization Layer
 
 ## Validate the implemented phases
 
@@ -42,6 +43,7 @@ This runs:
 - `test_milp`
 - `test_phase4_dsm`
 - `test_phase5_scenarios`
+- `test_phase6_visualization`
 
 ## Run a smoke workflow
 
@@ -51,7 +53,7 @@ run startup.m
 main()
 ```
 
-The smoke workflow loads config/survey/calendar/weather, builds the feeder, runs a BFS/PQ check, simulates one behavior-driven household day, computes tariffs, and runs one DSM household schedule. Phase 5 scenarios can be executed explicitly using the commands below.
+The smoke workflow loads config/survey/calendar/weather, builds the feeder, runs a BFS/PQ check, simulates one behavior-driven household day, computes tariffs, and runs one DSM household schedule. Phase 5 scenarios can be executed explicitly using the commands below. Phase 6 figures are generated automatically when multiple scenarios are run.
 
 ## Important notes
 
@@ -72,7 +74,7 @@ Scenario outputs are saved to `results/scenario_results.mat`.
 
 ## Next step
 
-Phase 6 - Visualization layer.
+Phase 7 - HouseholdTwin class.
 
 
 ## Phase 3 Implemented - Pricing Engine
@@ -176,3 +178,67 @@ Run validation with:
 ```matlab
 main([], 'validate')
 ```
+
+## EV charge-window feasibility fix
+
+This package includes an EV feasibility fix in `src/models/ev_model.m`. Randomly
+generated EVs are conditioned so their initial SOC can reach the target SOC within
+the available overnight charging window. This removes repeated population-simulation
+warnings such as "Insufficient time to charge EV to target SOC" while preserving
+stochastic arrival/departure behavior.
+
+The population cache is versioned with `phase2_ev_feasible_v2`, so older cached
+profiles are automatically regenerated.
+
+
+## Phase 6 Implemented - Visualization Layer
+
+This package implements the thesis visualization layer:
+
+- Scenario comparison overview
+- PQ index comparison
+- 24-hour load profile comparison
+- EV hosting capacity figure
+- PNG export at 300 DPI
+- EPS export for LaTeX/thesis workflows
+- MATLAB FIG export for later editing
+
+Key files:
+
+```text
+src/viz/plot_scenario_comparison.m
+src/viz/plot_pq_indices.m
+src/viz/plot_load_profiles.m
+src/viz/plot_hosting_capacity.m
+tests/test_phase6_visualization.m
+```
+
+Run scenarios and generate figures with:
+
+```matlab
+main([], 'all_scenarios')
+```
+
+Or explicitly request plots for selected scenarios:
+
+```matlab
+main([], 'scenarios', [-1 1 4 6], 'plot')
+```
+
+Figures are exported under:
+
+```text
+results/figures/png
+results/figures/eps
+results/figures
+```
+
+## Phase 6 Output Path Note
+
+Visualization outputs use the dynamic project paths resolved by `config_loader()`. By default, figures are exported to:
+
+```text
+EV_Hosting_DSM/results/figures
+```
+
+The path is relative to the active project root, so the project can be moved to another folder or drive without editing MATLAB code.

@@ -1,5 +1,5 @@
 function main(config_path, varargin)
-% MAIN Top-level runner for implemented Phase 0 through Phase 5 layers.
+% MAIN Top-level runner for implemented Phase 0 through Phase 6 layers.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -11,6 +11,7 @@ function main(config_path, varargin)
 %       'scenario', N           - run one scenario ID N (-1,0..6).
 %       'scenarios', [ids]      - run selected scenario IDs.
 %       'all_scenarios'         - run Baseline 0 and Scenarios 0..6.
+%       'plot'                  - generate Phase 6 figures after scenarios.
 %
 % Outputs:
 %   None. Scenario runs are saved to results/scenario_results.mat.
@@ -101,6 +102,13 @@ if ~isempty(scenarioIds)
     outFile = fullfile(cfg.output_dir, 'scenario_results.mat');
     save(outFile, 'all_results', 'scenarioIds', '-v7.3');
     fprintf('[main] Phase 5 complete: scenario results saved to %s\n', outFile);
+    if should_generate_plots(varargin) || numel(scenarioIds) >= 2
+        plot_scenario_comparison(all_results, cfg);
+        plot_pq_indices(all_results, cfg);
+        plot_load_profiles(all_results, cfg);
+        plot_hosting_capacity(all_results, cfg);
+        fprintf('[main] Phase 6 complete: visualization figures exported to %s\n', cfg.figs_dir);
+    end
 else
     fprintf('[main] Phase 5 scenario runners are implemented. Use main([], ''scenario'', 4) or main([], ''all_scenarios'') to execute them.\n');
 end
@@ -129,4 +137,9 @@ function pop = load_or_simulate_population(cfg, data, assignment, net, cal_struc
 % Delegate cache handling to simulate_population so stale caches created by older
 % EV feasibility logic are automatically invalidated.
 pop = simulate_population(cfg, data, assignment, net, cal_struct, weather);
+end
+
+function tf = should_generate_plots(args)
+% SHOULD_GENERATE_PLOTS Return true when explicit plot flag is present.
+tf = any(strcmpi(args, 'plot')) || any(strcmpi(args, 'plots'));
 end

@@ -164,10 +164,10 @@ if numel(cfg.pricing.block_rates_egp) ~= ...
         'block_rates_egp must have one more element than block_slabs_kwh.');
 end
 
-% --- Section 11: Resolve important paths ---
-cfg.survey_paths.xlsx = fullfile(rootDir, cfg.survey_paths.xlsx);
-cfg.survey_paths.mat  = fullfile(rootDir, cfg.survey_paths.mat);
-cfg.feeder_params_path = fullfile(rootDir, 'config', 'feeder_params.json');
+% --- Section 11: Resolve important paths dynamically from the project root ---
+cfg.survey_paths.xlsx = resolve_project_path(rootDir, cfg.survey_paths.xlsx);
+cfg.survey_paths.mat  = resolve_project_path(rootDir, cfg.survey_paths.mat);
+cfg.feeder_params_path = resolve_project_path(rootDir, fullfile('config', 'feeder_params.json'));
 
 if ~isfile(cfg.feeder_params_path)
     error('config_loader:missingFeederParams', ...
@@ -175,7 +175,10 @@ if ~isfile(cfg.feeder_params_path)
 end
 
 % --- Section 12: Output directory setup ---
-cfg.output_dir = fullfile(rootDir, cfg.output_dir);
+% The configured output_dir is normally the relative folder "results".
+% Resolve it dynamically so the project can be moved to any drive or PC
+% without hardcoded local paths. Absolute override paths are preserved.
+cfg.output_dir = resolve_project_path(rootDir, cfg.output_dir);
 cfg.figs_dir = fullfile(cfg.output_dir, 'figures');
 cfg.tables_dir = fullfile(cfg.output_dir, 'tables');
 
@@ -196,6 +199,57 @@ fprintf('[config_loader] OK: %s to %s | %d days | dt=%d min | %d steps\n', ...
     cfg.simulation.dt_min, ...
     cfg.simulation.Tsteps);
 
+end
+
+
+function absPath = resolve_project_path(rootDir, pathValue)
+% RESOLVE_PROJECT_PATH Resolve relative paths against the MATLAB project root.
+% Absolute paths are preserved. Relative paths are anchored at rootDir.
+
+if isstring(pathValue)
+    pathValue = char(pathValue);
+end
+
+if isempty(pathValue)
+    absPath = rootDir;
+    return;
+end
+
+if is_absolute_path(pathValue)
+    absPath = pathValue;
+else
+    absPath = fullfile(rootDir, pathValue);
+end
+end
+
+function tf = is_absolute_path(pathValue)
+% IS_ABSOLUTE_PATH True for Windows, UNC, and Unix absolute paths.
+
+if isstring(pathValue)
+    pathValue = char(pathValue);
+end
+
+tf = false;
+if isempty(pathValue)
+    return;
+end
+
+% Windows drive path, for example C:\folder or D:/folder.
+if numel(pathValue) >= 2 && pathValue(2) == ':'
+    tf = true;
+    return;
+end
+
+% UNC path, for example \server\share.
+if numel(pathValue) >= 2 && pathValue(1) == '\' && pathValue(2) == '\'
+    tf = true;
+    return;
+end
+
+% Unix/macOS absolute path.
+if pathValue(1) == '/'
+    tf = true;
+end
 end
 
 function out = merge_structs_recursive(base, override)
