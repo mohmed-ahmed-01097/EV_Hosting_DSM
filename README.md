@@ -15,6 +15,7 @@ Implemented status in this package:
 - [x] Phase 4 - DSM Controller
 - [x] Phase 5 - Scenario Execution Layer
 - [x] Phase 6 - Visualization Layer
+- [x] Phase 7 - HouseholdTwin Class
 
 ## Validate the implemented phases
 
@@ -44,6 +45,7 @@ This runs:
 - `test_phase4_dsm`
 - `test_phase5_scenarios`
 - `test_phase6_visualization`
+- `test_phase7_household_twin`
 
 ## Run a smoke workflow
 
@@ -53,7 +55,7 @@ run startup.m
 main()
 ```
 
-The smoke workflow loads config/survey/calendar/weather, builds the feeder, runs a BFS/PQ check, simulates one behavior-driven household day, computes tariffs, and runs one DSM household schedule. Phase 5 scenarios can be executed explicitly using the commands below. Phase 6 figures are generated automatically when multiple scenarios are run.
+The smoke workflow loads config/survey/calendar/weather, builds the feeder, runs a BFS/PQ check, simulates one behavior-driven household day, computes tariffs, and runs one DSM household schedule, and executes a HouseholdTwin smoke test. Phase 5 scenarios can be executed explicitly using the commands below. Phase 6 figures are generated automatically when multiple scenarios are run.
 
 ## Important notes
 
@@ -74,7 +76,7 @@ Scenario outputs are saved to `results/scenario_results.mat`.
 
 ## Next step
 
-Phase 7 - HouseholdTwin class.
+Phase 8 - Complete test-suite hardening and end-to-end validation.
 
 
 ## Phase 3 Implemented - Pricing Engine
@@ -242,3 +244,40 @@ EV_Hosting_DSM/results/figures
 ```
 
 The path is relative to the active project root, so the project can be moved to another folder or drive without editing MATLAB code.
+
+## Phase 7 Implemented - HouseholdTwin Class
+
+This package implements the configurable household digital twin interface:
+
+- Stateful `HouseholdTwin` class
+- Survey-derived household configuration
+- Daily profile generation through the Phase 2 load model
+- DSM flexibility-window API
+- DSM command validation and acceptance/rejection logic
+- Comfort-index protection with a default minimum CI of 0.30
+- EV status access
+- Short-horizon projected load output
+- Smart-meter measurement update with bias correction
+
+Key files:
+
+```text
+src/twin/HouseholdTwin.m
+tests/test_phase7_household_twin.m
+```
+
+Example:
+
+```matlab
+twin = HouseholdTwin(1, assignment, data, cfg);
+twin.generateDayProfile(cal_day, weather_day);
+windows = twin.getFlexibilityWindows();
+projection = twin.getProjectedLoad(8);
+ev = twin.getEVStatus();
+```
+
+Run validation with:
+
+```matlab
+main([], 'validate')
+```

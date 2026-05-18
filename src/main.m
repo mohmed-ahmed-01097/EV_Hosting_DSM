@@ -1,5 +1,5 @@
 function main(config_path, varargin)
-% MAIN Top-level runner for implemented Phase 0 through Phase 6 layers.
+% MAIN Top-level runner for implemented Phase 0 through Phase 7 layers.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -94,6 +94,16 @@ schedule = run_household_milp(hh, price_demo, cfg);
 fprintf('[main] Phase 4 complete: household DSM scheduling smoke test executed.\n');
 fprintf('[main] Phase 4 smoke metrics: method=%s | cost=%.2f EGP | comfort=%.3f | EV max charge=%.1f W.\n', ...
     schedule.method, schedule.cost_EGP, schedule.comfort_idx, max(schedule.p_ev));
+
+% --- Section 5b: Phase 7 HouseholdTwin smoke test ---
+twin = HouseholdTwin(1, assignment, data, cfg);
+twin.generateDayProfile(cal_day, weather_day);
+windows = twin.getFlexibilityWindows();
+evStatus = twin.getEVStatus();
+projection = twin.getProjectedLoad(4);
+fprintf('[main] Phase 7 complete: HouseholdTwin smoke test executed.\n');
+fprintf('[main] Phase 7 smoke metrics: flexibility_windows=%d | EV present=%d | projected %.1f..%.1f W.\n', ...
+    windows.count, evStatus.present, min(projection.power_w), max(projection.power_w));
 
 % --- Section 6: Phase 5 scenario execution when requested ---
 if ~isempty(scenarioIds)
