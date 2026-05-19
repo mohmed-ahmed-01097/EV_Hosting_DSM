@@ -489,3 +489,29 @@ Validate the step with:
 ```matlab
 test_part_b_step15_tests_view()
 ```
+
+
+## Phase 10 PART B Step 16 — Build EXE
+
+The project now includes the compiled-application build path for MATLAB Compiler. The executable entry point is `src/ui/launch_app.m`, while `EVHostingDSM_App.m` is bundled as a dependency.
+
+Build from the project root:
+
+```matlab
+run startup.m
+build_exe()
+```
+
+Validate the build manifest without compiling:
+
+```matlab
+build_exe('dry_run', true)
+```
+
+Validate Step 16:
+
+```matlab
+test_part_b_step16_build_exe()
+```
+
+Generated build support files are written to `exe/build_manifest.json` and `exe/README_DISTRIBUTION.txt`. When compiled, results are written to the user-writable `EV_DSM_Results` folder under `userpath`.

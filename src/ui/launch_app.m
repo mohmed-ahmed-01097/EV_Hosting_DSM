@@ -13,13 +13,20 @@ function app = launch_app()
 % Example:
 %   launch_app()
 %   app = launch_app();
+%
+% Notes:
+%   This function is also the compiled executable entry point used by
+%   build_exe.m. Keep it lightweight and avoid workspace assumptions.
 
 rootDir = get_root_dir();
-addpath(genpath(fullfile(rootDir, 'src')));
+srcDir = fullfile(rootDir, 'src');
+if exist(srcDir, 'dir') == 7
+    addpath(genpath(srcDir));
+end
 
 if exist('EVHostingDSM_App', 'class') ~= 8
     error('launch_app:missingApp', ...
-        'EVHostingDSM_App class was not found on the MATLAB path. Run startup.m first.');
+        'EVHostingDSM_App class was not found on the MATLAB path.');
 end
 
 appObj = EVHostingDSM_App();

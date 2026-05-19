@@ -46,6 +46,7 @@ test_part_b_step12_scenarios_view();
 test_part_b_step13_results_view();
 test_part_b_step14_export_view();
 test_part_b_step15_tests_view();
+test_part_b_step16_build_exe();
 
-fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables, Phase 10 PART A, PART B Step 9 UI scaffold, and PART B Step 10 app skeleton, PART B Step 11 core UI views, PART B Step 12 scenario execution UI, PART B Step 13 Results UI, and PART B Step 14 Export UI, and PART B Step 15 Tests UI are valid.\n');
+fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables, Phase 10 PART A, PART B Step 9 UI scaffold, and PART B Step 10 app skeleton, PART B Step 11 core UI views, PART B Step 12 scenario execution UI, PART B Step 13 Results UI, and PART B Step 14 Export UI, PART B Step 15 Tests UI, and PART B Step 16 build EXE script are valid.\n');
 end
