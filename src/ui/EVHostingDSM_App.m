@@ -14,9 +14,9 @@ classdef EVHostingDSM_App < matlab.apps.AppBase
 %   app = EVHostingDSM_App();
 %
 % Notes:
-%   PART B Step 11 implements the first five detailed views:
-%   Dashboard, Config, Feeder, Load, and Pricing. The remaining views are
-%   intentionally left as later-step placeholders.
+%   PART B Step 12 implements the first six detailed views:
+%   Dashboard, Config, Feeder, Load, Pricing, and Scenarios. The remaining
+%   Results, Export, and Tests views are intentionally left for later steps.
 
 properties (Access = public)
     UIFigure
@@ -104,6 +104,16 @@ properties (Access = private)
     BlockKwhEdit
     BlockBillText
     BlockSlabTable
+
+    ScenarioCards
+    ScenarioStatusLabels
+    ScenarioSelectionChecks
+    ScenarioRunDropDown
+    ScenarioDetailText
+    ScenarioProgressText
+    ScenarioLiveAxes
+    ScenarioLog
+    ScenarioStopRequested logical = false
 end
 
 methods (Access = public)
@@ -205,7 +215,7 @@ methods (Access = private)
         app.FeederPanel    = makeBasePanel(app);
         app.LoadPanel      = makeBasePanel(app);
         app.PricingPanel   = makeBasePanel(app);
-        app.ScenariosPanel = makePlaceholderPanel(app, 'Scenarios', 'Step 12 will add scenario cards and live execution.');
+        app.ScenariosPanel = makeBasePanel(app);
         app.ResultsPanel   = makePlaceholderPanel(app, 'Results', 'Step 13 will add PQ dashboard, comparison, hosting, cost, twin, and UQ sub-views.');
         app.ExportPanel    = makePlaceholderPanel(app, 'Export', 'Step 14 will add figure, CSV, and LaTeX export controls.');
         app.TestsPanel     = makePlaceholderPanel(app, 'Tests', 'Step 15 will add interactive test runner and result table.');
@@ -215,6 +225,7 @@ methods (Access = private)
         createFeederView(app);
         createLoadView(app);
         createPricingView(app);
+        createScenariosView(app);
     end
 
     function panel = makeBasePanel(app)
@@ -288,9 +299,9 @@ methods (Access = private)
 
         actions = makeCard(app, p, 'Quick Actions', [584 330 540 230]);
         uibutton(actions, 'push', 'Text', 'Run All Scenarios', 'FontWeight', 'bold', ...
-            'Position', [28 150 210 36], 'ButtonPushedFcn', @(~, ~) switchView(app, 6));
+            'Position', [28 150 210 36], 'ButtonPushedFcn', @(~, ~) onRunSelectedScenarios(app, [-1 0 1 2 3 4 5 6]));
         uibutton(actions, 'push', 'Text', 'Run Scenario 4', ...
-            'Position', [28 102 210 36], 'ButtonPushedFcn', @(~, ~) log(app, 'Scenario execution UI is implemented in Step 12.'));
+            'Position', [28 102 210 36], 'ButtonPushedFcn', @(~, ~) onRunSelectedScenarios(app, 4));
         uibutton(actions, 'push', 'Text', 'Run All Tests', ...
             'Position', [28 54 210 36], 'ButtonPushedFcn', @(~, ~) onRunTests(app));
         uibutton(actions, 'push', 'Text', 'Open Results Folder', ...
@@ -484,6 +495,67 @@ methods (Access = private)
             'FontColor', c.accent, 'Position', [490 150 320 28]);
         app.BlockSlabTable = uitable(block, 'Position', [24 18 1040 115], ...
             'ColumnName', {'Slab','Energy kWh','Rate EGP/kWh','Charge EGP'}, 'Data', cell(0,4));
+    end
+
+    function createScenariosView(app)
+        % CREATESCENARIOSVIEW Build scenario cards, controls, live plot, and log.
+        c = app.Theme.colors;
+        p = app.ScenariosPanel;
+        addHeader(app, p, 'Scenarios', 'Run baseline and DSM scenarios sequentially with progress callbacks, live log, and feeder-load preview.');
+
+        cardPanel = makeCard(app, p, 'Scenario Cards', [24 620 1100 110]);
+        ids = [-1 0 1 2 3 4 5 6];
+        names = {'Baseline 0','Scenario 0','Scenario 1','Scenario 2','Scenario 3','Scenario 4','Scenario 5','Scenario 6'};
+        tags = {'No EV / No DSM','Rule DSM / No EV','Uncontrolled EV','Slow vs Fast','MILP EV','MILP Loads+EV','MILP+V2G','Full AI-DSM'};
+        app.ScenarioCards = gobjects(numel(ids), 1);
+        app.ScenarioStatusLabels = gobjects(numel(ids), 1);
+        app.ScenarioSelectionChecks = gobjects(numel(ids), 1);
+        for k = 1:numel(ids)
+            x = 12 + (k-1) * 134;
+            card = uipanel(cardPanel, 'Title', '', 'BackgroundColor', c.bg_card, ...
+                'ForegroundColor', c.text_light, 'Position', [x 12 124 65]);
+            app.ScenarioCards(k) = card;
+            app.ScenarioSelectionChecks(k) = uicheckbox(card, 'Text', '', 'Value', ismember(ids(k), [-1 1 4 6]), ...
+                'Position', [5 38 20 20]);
+            uilabel(card, 'Text', names{k}, 'FontWeight', 'bold', 'FontSize', 10, ...
+                'FontColor', c.text_light, 'Position', [25 38 92 18]);
+            uilabel(card, 'Text', tags{k}, 'FontSize', 8, 'FontColor', c.text_muted, ...
+                'Position', [8 20 110 16]);
+            app.ScenarioStatusLabels(k) = uilabel(card, 'Text', 'Not run', 'FontSize', 8, ...
+                'FontWeight', 'bold', 'FontColor', c.text_muted, 'Position', [8 4 110 16]);
+        end
+
+        detail = makeCard(app, p, 'Active Scenario Detail', [24 500 1100 100]);
+        addSmallLabel(app, detail, 'Scenario', [20 45 75 22]);
+        app.ScenarioRunDropDown = uidropdown(detail, ...
+            'Items', {'Baseline 0','Scenario 0','Scenario 1','Scenario 2','Scenario 3','Scenario 4','Scenario 5','Scenario 6'}, ...
+            'ItemsData', ids, 'Value', 4, 'Position', [95 45 170 28], ...
+            'ValueChangedFcn', @(~, ~) refreshScenarioDetail(app));
+        uibutton(detail, 'push', 'Text', 'Run This', 'FontWeight', 'bold', ...
+            'Position', [290 45 110 30], 'ButtonPushedFcn', @(~, ~) onRunThisScenario(app));
+        uibutton(detail, 'push', 'Text', 'Run Selected', ...
+            'Position', [415 45 125 30], 'ButtonPushedFcn', @(~, ~) onRunCheckedScenarios(app));
+        uibutton(detail, 'push', 'Text', 'Stop', ...
+            'Position', [555 45 85 30], 'ButtonPushedFcn', @(~, ~) onStopScenarios(app));
+        uibutton(detail, 'push', 'Text', 'Reset', ...
+            'Position', [655 45 85 30], 'ButtonPushedFcn', @(~, ~) onResetScenarios(app));
+        app.ScenarioDetailText = uilabel(detail, 'Text', 'Scenario 4 - MILP loads + EV, no V2G.', ...
+            'FontColor', c.text_light, 'WordWrap', 'on', 'Position', [20 10 1040 26]);
+
+        exec = makeCard(app, p, 'Live Execution', [24 95 1100 385]);
+        app.ScenarioProgressText = uilabel(exec, 'Text', 'Progress: idle', 'FontColor', c.text_light, ...
+            'FontWeight', 'bold', 'Position', [20 320 1020 26]);
+        app.ScenarioLiveAxes = uiaxes(exec, 'Position', [40 45 610 260]);
+        title(app.ScenarioLiveAxes, 'Live / Last Scenario Three-Phase Feeder Load');
+        xlabel(app.ScenarioLiveAxes, 'Time step');
+        ylabel(app.ScenarioLiveAxes, 'Power [kW]');
+        app.ScenarioLog = uitextarea(exec, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
+            'FontSize', 10, 'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [680 45 390 260], 'Value', {'> Scenario log initialized.'});
+        uibutton(exec, 'push', 'Text', 'Pop Out Live Plot', 'Position', [40 12 135 26], ...
+            'ButtonPushedFcn', @(~, ~) onPopoutScenarioPlot(app));
+        uibutton(exec, 'push', 'Text', 'Open Results Folder', 'Position', [190 12 145 26], ...
+            'ButtonPushedFcn', @(~, ~) onOpenResultsFolder(app));
     end
 
     function createStatusBar(app)
@@ -909,6 +981,299 @@ methods (Access = private)
         end
     end
 
+    function refreshScenarioDetail(app)
+        % REFRESHSCENARIODETAIL Update active scenario description text.
+        if isempty(app.ScenarioRunDropDown)
+            return;
+        end
+        sid = app.ScenarioRunDropDown.Value;
+        app.ScenarioDetailText.Text = scenarioDescriptionText(sid);
+        updateScenarioCardSelection(app, sid);
+    end
+
+    function onRunThisScenario(app)
+        % ONRUNTHISSCENARIO Run the dropdown-selected scenario.
+        onRunSelectedScenarios(app, app.ScenarioRunDropDown.Value);
+    end
+
+    function onRunCheckedScenarios(app)
+        % ONRUNCHECKEDSCENARIOS Run scenarios whose cards are checked.
+        ids = [-1 0 1 2 3 4 5 6];
+        selected = false(size(ids));
+        for k = 1:numel(ids)
+            selected(k) = app.ScenarioSelectionChecks(k).Value;
+        end
+        if ~any(selected)
+            logScenario(app, 'No scenario cards selected. Select at least one card.');
+            return;
+        end
+        onRunSelectedScenarios(app, ids(selected));
+    end
+
+    function onRunSelectedScenarios(app, scenarioIds)
+        % ONRUNSELECTEDSCENARIOS Sequential compiled-safe scenario execution.
+        if isempty(app.cfg) || isempty(app.data) || isempty(app.net) || isempty(app.assignment)
+            logScenario(app, 'Project is not initialized; cannot run scenarios.');
+            return;
+        end
+        app.ScenarioStopRequested = false;
+        switchView(app, 6);
+        scenarioIds = scenarioIds(:)';
+        logScenario(app, sprintf('Starting scenario batch: %s', mat2str(scenarioIds)));
+        updateProgress(app, 0, 'scenario batch starting');
+
+        try
+            ensurePopulationReady(app);
+        catch ME
+            logScenario(app, sprintf('Population preparation failed: %s', ME.message));
+            updateScenarioProgress(app, 0, sprintf('Failed before scenarios: %s', ME.message));
+            return;
+        end
+
+        if isempty(app.all_results) || numel(app.all_results) < 8
+            app.all_results = cell(8, 1);
+        end
+
+        for k = 1:numel(scenarioIds)
+            sid = scenarioIds(k);
+            if app.ScenarioStopRequested
+                logScenario(app, 'Scenario batch stopped by user.');
+                updateScenarioProgress(app, 0, 'stopped');
+                break;
+            end
+            updateScenarioCardStatus(app, sid, 'running');
+            updateScenarioProgress(app, 1, sprintf('Scenario %g starting...', sid));
+            progressCb = @(pct, msg) scenarioProgressCallback(app, sid, pct, msg);
+            try
+                result = runScenarioById(app, sid, progressCb);
+                app.all_results{scenarioResultIndex(sid)} = result;
+                updateScenarioCardStatus(app, sid, 'complete');
+                updateDashboardFromScenario(app, result);
+                updateScenarioLivePlot(app, result);
+                logScenario(app, sprintf('Scenario %g COMPLETE.', sid));
+            catch ME
+                updateScenarioCardStatus(app, sid, 'failed');
+                logScenario(app, sprintf('ERROR Scenario %g: %s', sid, ME.message));
+            end
+            drawnow('limitrate');
+        end
+
+        app.all_results_ready = true;
+        saveScenarioResults(app);
+        updateProgress(app, 100, 'scenario batch done');
+        updateStatus(app, 'Scenario execution finished', 'success');
+    end
+
+    function ensurePopulationReady(app)
+        % ENSUREPOPULATIONREADY Load or simulate population before scenarios run.
+        if ~isempty(app.pop) && isstruct(app.pop)
+            return;
+        end
+        cacheFile = fullfile(app.cfg.output_dir, 'population_profiles.mat');
+        if isfile(cacheFile)
+            S = load(cacheFile, 'pop');
+            app.pop = S.pop;
+            setLamp(app, 'population', true);
+            logScenario(app, sprintf('Loaded population cache: %s', cacheFile));
+            return;
+        end
+        logScenario(app, 'Population cache not found. Running population simulation first.');
+        cb = @(pct, msg) scenarioProgressCallback(app, NaN, pct, ['Population: ', msg]);
+        app.pop = simulate_population(app.cfg, app.data, app.assignment, app.net, app.cal_struct, app.weather, cb);
+        setLamp(app, 'population', true);
+        refreshDashboard(app);
+    end
+
+    function result = runScenarioById(app, sid, progressCb)
+        % RUNSCENARIOBYID Dispatch baseline or scenario function.
+        if sid == -1
+            result = run_baseline0(app.cfg, app.data, app.net, app.assignment, app.pop, app.cal_struct, app.weather, progressCb);
+        else
+            runFn = str2func(sprintf('run_scenario%d', sid));
+            result = runFn(app.cfg, app.data, app.net, app.assignment, app.pop, app.cal_struct, app.weather, progressCb);
+        end
+    end
+
+    function scenarioProgressCallback(app, sid, pct, msg)
+        % SCENARIOPROGRESSCALLBACK Update progress bar, text log, and live plot.
+        pct = max(0, min(100, round(pct)));
+        if isnan(sid)
+            label = sprintf('%d%% - %s', pct, msg);
+        else
+            label = sprintf('S%g: %d%% - %s', sid, pct, msg);
+        end
+        updateScenarioProgress(app, pct, label);
+        logScenario(app, msg);
+        drawnow('limitrate');
+    end
+
+    function updateScenarioProgress(app, pct, msg)
+        % UPDATESCENARIOPROGRESS Update scenario progress label and status bar.
+        if ~isempty(app.ScenarioProgressText) && isvalid(app.ScenarioProgressText)
+            app.ScenarioProgressText.Text = sprintf('Progress: %d%% | %s', pct, msg);
+        end
+        updateProgress(app, pct, msg);
+    end
+
+    function updateScenarioCardStatus(app, sid, status)
+        % UPDATESCENARIOCARDSTATUS Update a scenario card label and color.
+        idx = scenarioResultIndex(sid);
+        if isempty(app.ScenarioStatusLabels) || idx < 1 || idx > numel(app.ScenarioStatusLabels)
+            return;
+        end
+        c = app.Theme.colors;
+        label = app.ScenarioStatusLabels(idx);
+        card = app.ScenarioCards(idx);
+        switch lower(status)
+            case 'running'
+                label.Text = 'Running...'; label.FontColor = c.warning; card.BackgroundColor = 0.65*c.bg_card + 0.35*c.warning;
+            case 'complete'
+                label.Text = 'Complete'; label.FontColor = c.success; card.BackgroundColor = 0.75*c.bg_card + 0.25*c.success;
+            case 'failed'
+                label.Text = 'Failed'; label.FontColor = c.danger; card.BackgroundColor = 0.70*c.bg_card + 0.30*c.danger;
+            otherwise
+                label.Text = 'Not run'; label.FontColor = c.text_muted; card.BackgroundColor = c.bg_card;
+        end
+        drawnow('limitrate');
+    end
+
+    function updateScenarioCardSelection(app, sid)
+        % UPDATESCENARIOCARDSELECTION Visually highlight the dropdown-selected scenario.
+        if isempty(app.ScenarioCards)
+            return;
+        end
+        c = app.Theme.colors;
+        for k = 1:numel(app.ScenarioCards)
+            app.ScenarioCards(k).BorderType = 'line';
+            app.ScenarioCards(k).HighlightColor = c.bg_card;
+        end
+        idx = scenarioResultIndex(sid);
+        if idx >= 1 && idx <= numel(app.ScenarioCards)
+            app.ScenarioCards(idx).HighlightColor = c.accent;
+        end
+    end
+
+    function onStopScenarios(app)
+        % ONSTOPSCENARIOS Request stop between sequential scenario runs.
+        app.ScenarioStopRequested = true;
+        logScenario(app, 'Stop requested. Current scenario will finish, then the batch will stop.');
+        updateScenarioProgress(app, 0, 'stop requested');
+    end
+
+    function onResetScenarios(app)
+        % ONRESETSCENARIOS Reset card statuses and scenario log.
+        app.ScenarioStopRequested = false;
+        app.all_results = cell(8, 1);
+        for sid = [-1 0 1 2 3 4 5 6]
+            updateScenarioCardStatus(app, sid, 'notrun');
+        end
+        if ~isempty(app.ScenarioLog) && isvalid(app.ScenarioLog)
+            app.ScenarioLog.Value = {'> Scenario log reset.'};
+        end
+        cla(app.ScenarioLiveAxes);
+        title(app.ScenarioLiveAxes, 'Live / Last Scenario Three-Phase Feeder Load');
+        updateScenarioProgress(app, 0, 'reset');
+        log(app, 'Scenario view reset.');
+    end
+
+    function logScenario(app, msg)
+        % LOGSCENARIO Append to scenario-specific log and global log.
+        if ~isempty(app.ScenarioLog) && isvalid(app.ScenarioLog)
+            app.ScenarioLog.Value = app_log(app.ScenarioLog.Value, msg, 200);
+            try
+                scroll(app.ScenarioLog, 'bottom');
+            catch
+            end
+        end
+        log(app, msg);
+    end
+
+    function updateScenarioLivePlot(app, result)
+        % UPDATESCENARIOLIVEPLOT Plot retained lean feeder-load output.
+        if isempty(app.ScenarioLiveAxes) || ~isvalid(app.ScenarioLiveAxes)
+            return;
+        end
+        cla(app.ScenarioLiveAxes);
+        try
+            if isfield(result, 'slow') && isfield(result.slow, 'L_feeder_w')
+                L = result.slow.L_feeder_w;
+                plotTitle = 'Scenario 2 slow charger feeder load';
+            elseif isfield(result, 'L_feeder_w')
+                L = result.L_feeder_w;
+                plotTitle = sprintf('Scenario %g feeder load', result.scenario_id);
+            else
+                title(app.ScenarioLiveAxes, 'No retained L_feeder_w in result.');
+                return;
+            end
+            n = size(L, 1);
+            stride = max(1, ceil(n / 1500));
+            x = (1:stride:n)';
+            y = L(x, :)/1000;
+            plot(app.ScenarioLiveAxes, x, y, 'LineWidth', 1.1);
+            grid(app.ScenarioLiveAxes, 'on');
+            xlabel(app.ScenarioLiveAxes, 'Time step');
+            ylabel(app.ScenarioLiveAxes, 'Power [kW]');
+            legend(app.ScenarioLiveAxes, {'Phase A','Phase B','Phase C'}, 'Location', 'best');
+            title(app.ScenarioLiveAxes, plotTitle);
+        catch ME
+            title(app.ScenarioLiveAxes, sprintf('Live plot failed: %s', ME.message));
+        end
+    end
+
+    function updateDashboardFromScenario(app, result)
+        % UPDATEDASHBOARDFROMSCENARIO Copy latest scenario KPIs into dashboard tiles.
+        try
+            if isfield(result, 'slow')
+                result = result.fast;
+            end
+            if isfield(result, 'pq_summary')
+                app.DashboardKpiLabels(1).Text = sprintf('%.2f%%', result.pq_summary.max_vuf_pct);
+                app.DashboardKpiLabels(2).Text = sprintf('%.3f pu', result.pq_summary.min_voltage_pu);
+            end
+            if isfield(result, 'hosting_capacity_pct')
+                app.DashboardKpiLabels(3).Text = sprintf('%.0f%%', result.hosting_capacity_pct);
+            end
+            if isfield(result, 'comfort_summary') && isfield(result.comfort_summary, 'mean_ci')
+                app.DashboardKpiLabels(4).Text = sprintf('CI %.2f', result.comfort_summary.mean_ci);
+            end
+            if isfield(result, 'scenario_id')
+                app.DashboardKpiLabels(5).Text = sprintf('S%g', result.scenario_id);
+            end
+            if ~isempty(app.DashboardFeederAxes) && isvalid(app.DashboardFeederAxes)
+                app_feeder_plot(app.net, app.assignment, app.DashboardFeederAxes);
+            end
+        catch ME
+            logScenario(app, sprintf('Dashboard KPI update warning: %s', ME.message));
+        end
+    end
+
+    function saveScenarioResults(app)
+        % SAVESCENARIORESULTS Save current scenario cell array to results folder.
+        try
+            if isempty(app.cfg) || isempty(app.all_results)
+                return;
+            end
+            if exist(app.cfg.output_dir, 'dir') ~= 7
+                mkdir(app.cfg.output_dir);
+            end
+            all_results = app.all_results; %#ok<NASGU>
+            outFile = fullfile(app.cfg.output_dir, 'scenario_results.mat');
+            save(outFile, 'all_results', '-v7.3');
+            logScenario(app, sprintf('Scenario results saved: %s', outFile));
+        catch ME
+            logScenario(app, sprintf('Could not save scenario_results.mat: %s', ME.message));
+        end
+    end
+
+    function onPopoutScenarioPlot(app)
+        % ONPOPOUTSCENARIOPLOT Pop out latest scenario comparison/live plot.
+        if isempty(app.all_results)
+            logScenario(app, 'No scenario results available to pop out.');
+            return;
+        end
+        app_popout_plot('comparison', app.all_results, app.cfg);
+    end
+
     function switchView(app, viewId)
         % SWITCHVIEW Hide all content panels and show one selected panel.
         panels = {app.DashboardPanel, app.ConfigPanel, app.FeederPanel, ...
@@ -1032,6 +1397,35 @@ methods (Access = private)
             log(app, sprintf('Could not open folder automatically: %s', ME.message));
         end
     end
+end
+end
+
+function idx = scenarioResultIndex(sid)
+% SCENARIORESULTINDEX Map scenario ID to cell index: -1->1, 0->2, ..., 6->8.
+idx = sid + 2;
+end
+
+function txt = scenarioDescriptionText(sid)
+% SCENARIODESCRIPTIONTEXT Human-readable scenario description for UI.
+switch sid
+    case -1
+        txt = 'Baseline 0 - no EVs and no DSM. Reference feeder and household behavior only.';
+    case 0
+        txt = 'Scenario 0 - no EVs with rule-based DSM for controllable household appliances.';
+    case 1
+        txt = 'Scenario 1 - uncontrolled EV integration with immediate charging at arrival.';
+    case 2
+        txt = 'Scenario 2 - slow 3.7 kW versus fast 7.4 kW uncontrolled EV comparison.';
+    case 3
+        txt = 'Scenario 3 - MILP-controlled EV charging only.';
+    case 4
+        txt = 'Scenario 4 - MILP-controlled household loads plus EV charging, without V2G.';
+    case 5
+        txt = 'Scenario 5 - MILP-controlled household loads plus EV and V2G.';
+    case 6
+        txt = 'Scenario 6 - full hierarchical AI-DSM with feeder supervisor and V2G.';
+    otherwise
+        txt = sprintf('Scenario %g', sid);
 end
 end
 

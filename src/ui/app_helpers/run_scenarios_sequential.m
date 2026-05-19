@@ -1,96 +1,73 @@
-function allResults = run_scenarios_sequential(appOrContext, scenarioIds)
-% RUN_SCENARIOS_SEQUENTIAL Run selected scenarios with drawnow progress updates.
+function allResults = run_scenarios_sequential(ctx, scenarioIds, progress_cb)
+% RUN_SCENARIOS_SEQUENTIAL Run selected scenarios sequentially with UI-safe progress.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
 %
 % Inputs:
-%   appOrContext - App object or struct with cfg, data, net, assignment, pop,
-%                  cal_struct, weather, and optional log/update methods.
-%   scenarioIds  - vector of scenario IDs. Use -1 for Baseline 0.
+%   ctx         - struct context with fields cfg, data, net, assignment, pop,
+%                 cal_struct, weather. This helper is intentionally struct-based
+%                 so it can be used from tests, scripts, or app wrapper methods.
+%   scenarioIds - numeric vector. Use -1 for Baseline 0, 0..6 for scenarios.
+%   progress_cb - optional callback @(pct,msg,sid) for UI/log updates.
 %
 % Outputs:
-%   allResults   - cell array of scenario results in input order
+%   allResults - cell array of scenario results in input order.
 %
 % Example:
-%   r = run_scenarios_sequential(ctx, [-1 1 4 6]);
+%   ctx = struct('cfg',cfg,'data',data,'net',net,'assignment',assignment, ...
+%                'pop',pop,'cal_struct',cal_struct,'weather',weather);
+%   r = run_scenarios_sequential(ctx, [-1 1 4 6], @(p,m,s) fprintf('%g%% %s\n',p,m));
+%
+% Notes:
+%   No parfeval/parfor is used. drawnow('limitrate') keeps compiled apps responsive.
 
 if nargin < 2 || isempty(scenarioIds)
-    scenarioIds = [-1, 0, 1, 2, 3, 4, 5, 6];
+    scenarioIds = [-1 0 1 2 3 4 5 6];
+end
+if nargin < 3 || isempty(progress_cb) || ~isa(progress_cb, 'function_handle')
+    progress_cb = @(pct, msg, sid) [];
 end
 
-ctx = appOrContext;
+required = {'cfg','data','net','assignment','pop','cal_struct','weather'};
+for k = 1:numel(required)
+    if ~isfield(ctx, required{k})
+        error('run_scenarios_sequential:missingContext', ...
+            'Context is missing required field: %s', required{k});
+    end
+end
+
+scenarioIds = scenarioIds(:)';
 allResults = cell(numel(scenarioIds), 1);
 
 for k = 1:numel(scenarioIds)
     sid = scenarioIds(k);
-    set_status(ctx, sid, 'running');
-    progressCb = @(pct, msg) handle_progress(ctx, pct, msg, sid);
+    batchPctBase = 100 * (k-1) / max(numel(scenarioIds), 1);
+    batchPctSpan = 100 / max(numel(scenarioIds), 1);
+    progress_cb(round(batchPctBase), sprintf('Scenario %g starting...', sid), sid);
+    scenario_cb = @(pct, msg) nested_progress(progress_cb, batchPctBase, batchPctSpan, pct, msg, sid);
     try
         if sid == -1
-            r = run_baseline0(ctx.cfg, ctx.data, ctx.net, ctx.assignment, ...
-                ctx.pop, ctx.cal_struct, ctx.weather, progressCb);
+            result = run_baseline0(ctx.cfg, ctx.data, ctx.net, ctx.assignment, ...
+                ctx.pop, ctx.cal_struct, ctx.weather, scenario_cb);
         else
             runFn = str2func(sprintf('run_scenario%d', sid));
-            r = runFn(ctx.cfg, ctx.data, ctx.net, ctx.assignment, ...
-                ctx.pop, ctx.cal_struct, ctx.weather, progressCb);
+            result = runFn(ctx.cfg, ctx.data, ctx.net, ctx.assignment, ...
+                ctx.pop, ctx.cal_struct, ctx.weather, scenario_cb);
         end
-        allResults{k} = r;
-        set_status(ctx, sid, 'complete');
-        write_log(ctx, sprintf('Scenario %g complete.', sid));
+        allResults{k} = result;
+        progress_cb(round(batchPctBase + batchPctSpan), sprintf('Scenario %g complete.', sid), sid);
     catch ME
-        set_status(ctx, sid, 'failed');
-        write_log(ctx, sprintf('ERROR Scenario %g: %s', sid, ME.message));
         allResults{k} = struct('scenario_id', sid, 'error', ME.message);
+        progress_cb(round(batchPctBase + batchPctSpan), sprintf('Scenario %g failed: %s', sid, ME.message), sid);
     end
     drawnow('limitrate');
 end
 end
 
-function handle_progress(ctx, pct, msg, sid)
-try
-    if isprop(ctx, 'ProgressLabel')
-        ctx.ProgressLabel.Text = sprintf('S%g: %d%% - %s', sid, pct, msg);
-    elseif isfield(ctx, 'ProgressLabel') && isobject(ctx.ProgressLabel)
-        ctx.ProgressLabel.Text = sprintf('S%g: %d%% - %s', sid, pct, msg);
-    end
-catch
-end
-try
-    if isprop(ctx, 'ProgressBar') && isprop(ctx.ProgressBar, 'Value')
-        ctx.ProgressBar.Value = min(max(pct, 0), 100);
-    elseif isfield(ctx, 'ProgressBar') && isobject(ctx.ProgressBar) && isprop(ctx.ProgressBar, 'Value')
-        ctx.ProgressBar.Value = min(max(pct, 0), 100);
-    end
-catch
-end
-write_log(ctx, msg);
+function nested_progress(progress_cb, basePct, spanPct, pct, msg, sid)
+% NESTED_PROGRESS Convert scenario-local percent into batch percent.
+batchPct = round(basePct + spanPct * max(0, min(100, pct)) / 100);
+progress_cb(batchPct, msg, sid);
 drawnow('limitrate');
-end
-
-function set_status(ctx, sid, status)
-try
-    if ismethod(ctx, 'update_card_status')
-        ctx.update_card_status(sid, status);
-    elseif isfield(ctx, 'scenario_status')
-        ctx.scenario_status.(matlab.lang.makeValidName(sprintf('S%g', sid))) = status; %#ok<NASGU>
-    end
-catch
-end
-end
-
-function write_log(ctx, msg)
-try
-    if ismethod(ctx, 'log')
-        ctx.log(msg);
-    elseif isprop(ctx, 'ExecutionLog')
-        app_log(ctx.ExecutionLog, msg);
-    elseif isfield(ctx, 'ExecutionLog')
-        app_log(ctx.ExecutionLog, msg);
-    else
-        fprintf('[UI] %s\n', msg);
-    end
-catch
-    fprintf('[UI] %s\n', msg);
-end
 end

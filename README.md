@@ -430,3 +430,20 @@ test_part_b_step11_core_views()
 ```
 
 Scenarios, Results, Export, and Tests remain reserved for Steps 12–15.
+
+
+## Phase 10 PART B Step 12 — Scenarios View
+
+The UI now includes an operational Scenarios view with scenario cards, selected-scenario execution, sequential batch execution, stop/reset controls, progress log, and a live/last feeder-load preview. The implementation remains compiled-app friendly: no `parfeval` or `parfor`; long runs update the UI through progress callbacks and `drawnow('limitrate')`.
+
+Validate Step 12 only:
+
+```matlab
+test_part_b_step12_scenarios_view()
+```
+
+Launch the app:
+
+```matlab
+launch_app()
+```
