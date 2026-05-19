@@ -8,23 +8,23 @@ function build_exe()
 %   None
 %
 % Outputs:
-%   Creates exe/EVHostingDSM_Simulator.exe after Step 10+ app implementation.
+%   Creates exe/EVHostingDSM_Simulator.exe when MATLAB Compiler is available.
 %
 % Example:
 %   run startup.m
 %   build_exe()
-%
-% Notes:
-%   PART B Step 9 only prepares the UI folder/helper scaffold. Compilation
-%   is enabled after the App Designer app exists.
 
 rootDir = get_root_dir();
-appFile = fullfile(rootDir, 'src', 'ui', 'EVHostingDSM_App.mlapp');
+appFileMlapp = fullfile(rootDir, 'src', 'ui', 'EVHostingDSM_App.mlapp');
+appFileM     = fullfile(rootDir, 'src', 'ui', 'EVHostingDSM_App.m');
 
-if exist(appFile, 'file') ~= 2
+if exist(appFileMlapp, 'file') == 2
+    appFile = appFileMlapp;
+elseif exist(appFileM, 'file') == 2
+    appFile = appFileM;
+else
     error('build_exe:missingApp', ...
-        ['EVHostingDSM_App.mlapp was not found. ', ...
-         'Complete PART B Step 10 before compiling.']);
+        'Neither EVHostingDSM_App.mlapp nor EVHostingDSM_App.m was found.');
 end
 
 if exist('compiler.build.standaloneApplication', 'file') ~= 2

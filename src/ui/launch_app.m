@@ -1,5 +1,5 @@
-function launch_app()
-% LAUNCH_APP Start the EV Hosting DSM App Designer UI.
+function app = launch_app()
+% LAUNCH_APP Start the EV Hosting DSM MATLAB UI.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -8,28 +8,23 @@ function launch_app()
 %   None
 %
 % Outputs:
-%   Opens the App Designer UI once EVHostingDSM_App is implemented.
+%   app (EVHostingDSM_App): App handle when requested.
 %
 % Example:
 %   launch_app()
-%
-% Notes:
-%   PART B Step 9 prepares the UI folder and helper layer only. The actual
-%   EVHostingDSM_App class is added in Step 10, so this launcher gives a
-%   clear message until that file exists.
+%   app = launch_app();
 
 rootDir = get_root_dir();
 addpath(genpath(fullfile(rootDir, 'src')));
 
-appFileMlapp = fullfile(rootDir, 'src', 'ui', 'EVHostingDSM_App.mlapp');
-appFileM     = fullfile(rootDir, 'src', 'ui', 'EVHostingDSM_App.m');
+if exist('EVHostingDSM_App', 'class') ~= 8
+    error('launch_app:missingApp', ...
+        'EVHostingDSM_App class was not found on the MATLAB path. Run startup.m first.');
+end
 
-if exist(appFileMlapp, 'file') == 2 || exist(appFileM, 'file') == 2 || exist('EVHostingDSM_App', 'class') == 8
-    EVHostingDSM_App();
-else
-    error('launch_app:notImplemented', ...
-        ['EVHostingDSM_App is not implemented yet. ', ...
-         'PART B Step 9 created the UI scaffold and helpers. ', ...
-         'Implement Step 10 before launching the app.']);
+appObj = EVHostingDSM_App();
+
+if nargout > 0
+    app = appObj;
 end
 end

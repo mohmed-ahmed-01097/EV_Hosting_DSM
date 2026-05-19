@@ -381,3 +381,26 @@ or run the full validation suite:
 ```matlab
 main([], 'validate')
 ```
+
+## Phase 10 PART B Step 10 — App Skeleton
+
+The package now includes the dashboard-first MATLAB UI skeleton:
+
+```text
+src/ui/EVHostingDSM_App.m
+```
+
+Launch it from MATLAB with:
+
+```matlab
+run startup.m
+launch_app()
+```
+
+The class creates the main window, sidebar card navigation, nine view panels, dashboard placeholders, status bar, execution log, and progress indicator. Later UI steps will fill each view with its final controls.
+
+Validation:
+
+```matlab
+test_part_b_step10_app_skeleton()
+```
