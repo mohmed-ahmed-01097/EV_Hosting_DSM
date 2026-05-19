@@ -111,7 +111,7 @@ if ~isempty(scenarioIds)
     pop = load_or_simulate_population(cfg, data, assignment, net, cal_struct, weather);
     all_results = run_all_scenarios(cfg, data, net, assignment, pop, cal_struct, weather, scenarioIds); %#ok<NASGU>
     outFile = fullfile(cfg.output_dir, 'scenario_results.mat');
-    save(outFile, 'all_results', 'scenarioIds', '-v7.3');
+    save_scenario_results(outFile, all_results, scenarioIds, cfg);
     fprintf('[main] Phase 5 complete: scenario results saved to %s\n', outFile);
 
     exportInfo = export_results_tables(all_results, cfg);
@@ -129,6 +129,41 @@ else
     export_results_tables({}, cfg);
     fprintf('[main] Phase 5 scenario runners are implemented. Use main([], ''scenario'', 4) or main([], ''all_scenarios'') to execute them.\n');
     fprintf('[main] Phase 8/9 finalization complete: validation wiring and empty checklist export are available.\n');
+end
+end
+
+
+function save_scenario_results(outFile, all_results, scenarioIds, cfg)
+% SAVE_SCENARIO_RESULTS Save scenario results using a size-aware MAT format.
+%
+% Lean result structs are normally below the MAT v7 size limit and save much
+% faster than v7.3. If the user explicitly enables full/debug storage, or if
+% v7 fails because the object is still too large, fall back to v7.3.
+
+saveMat = true;
+if isfield(cfg, 'results') && isstruct(cfg.results) && isfield(cfg.results, 'save_mat_file')
+    saveMat = logical(cfg.results.save_mat_file);
+end
+if ~saveMat
+    fprintf('[main] Scenario MAT save skipped because cfg.results.save_mat_file=false. CSV tables and figures are still exported.\n');
+    return;
+end
+
+storageMode = 'lean';
+if isfield(cfg, 'results') && isstruct(cfg.results) && isfield(cfg.results, 'storage_mode')
+    storageMode = char(string(cfg.results.storage_mode));
+end
+
+if any(strcmpi(storageMode, {'full','debug'}))
+    save(outFile, 'all_results', 'scenarioIds', '-v7.3');
+else
+    try
+        save(outFile, 'all_results', 'scenarioIds', '-v7');
+    catch ME
+        warning('main:saveFallbackV73', ...
+            'MAT v7 save failed (%s). Retrying with -v7.3.', ME.message);
+        save(outFile, 'all_results', 'scenarioIds', '-v7.3');
+    end
 end
 end
 

@@ -163,8 +163,12 @@ for br = 1:net.n_branches
     end
 
     neutralConductor = params.conductors.neutral;
-    zNeutralPerKm = neutralConductor.r_ohm_per_km + 1j * neutralConductor.x_ohm_per_km;
-    zNeutral = 1.2 * zNeutralPerKm * branch.length_m / 1000;
+    neutralMult = 1.2;  % Egyptian LV standard default
+    if isfield(neutralConductor, 'multiplier') && neutralConductor.multiplier > 0
+        neutralMult = neutralConductor.multiplier;
+    end
+    zNeutral = neutralMult * (neutralConductor.r_ohm_per_km + ...
+        1j * neutralConductor.x_ohm_per_km) * branch.length_m / 1000;
 
     net.branch_from(br) = fromIdx;
     net.branch_to(br) = toIdx;

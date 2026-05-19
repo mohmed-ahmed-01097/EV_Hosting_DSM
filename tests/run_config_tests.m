@@ -38,6 +38,7 @@ test_phase6_visualization();
 test_phase7_household_twin();
 test_phase8_tests_inventory();
 test_phase9_main_export();
+test_part_a_bug_fixes();
 
-fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables are valid. Full implementation plan is complete.\n');
+fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables and Phase 10 PART A bug fixes are valid.\n');
 end

@@ -12,6 +12,11 @@ function test_phase5_scenarios()
 %
 % Example:
 %   test_phase5_scenarios()
+%
+% Notes:
+%   This test is lean-results compatible. Full household matrices (L_house_w)
+%   and controller schedules may be intentionally removed by the results
+%   storage policy to avoid multi-GB MAT files.
 
 fprintf('\n[test_phase5_scenarios] Starting Phase 5 scenario validation...\n');
 
@@ -32,18 +37,24 @@ assert_pass(size(rBase.L_feeder_w, 1) == cfg.simulation.Tsteps && size(rBase.L_f
     sprintf('Baseline L_feeder_w has expected size %dx3', cfg.simulation.Tsteps));
 assert_pass(isfinite(rBase.hosting_capacity_pct), ...
     sprintf('Baseline hosting capacity estimate finite: %.1f%%', rBase.hosting_capacity_pct));
+assert_pass(is_lean_compatible_result(rBase), ...
+    sprintf('Baseline result is compatible with storage mode: %s', get_storage_mode(rBase)));
 
 r1 = run_scenario1(cfg, data, net, assignment, pop, cal_struct, weather);
-assert_pass(sum(r1.L_house_w(:)) > sum(rBase.L_house_w(:)), ...
-    'Scenario 1 uncontrolled EV adds energy above baseline');
+assert_pass(total_feeder_energy_kwh(r1, cfg) > total_feeder_energy_kwh(rBase, cfg), ...
+    'Scenario 1 uncontrolled EV adds feeder energy above baseline');
 assert_pass(r1.pq_summary.max_loading_pct >= rBase.pq_summary.max_loading_pct, ...
     'Scenario 1 loading is not lower than baseline');
+assert_pass(is_lean_compatible_result(r1), ...
+    sprintf('Scenario 1 result is compatible with storage mode: %s', get_storage_mode(r1)));
 
 r2 = run_scenario2(cfg, data, net, assignment, pop, cal_struct, weather);
 assert_pass(isfield(r2, 'comparison') && isfield(r2.comparison, 'slow') && isfield(r2.comparison, 'fast'), ...
     'Scenario 2 includes slow/fast comparison structs');
 assert_pass(r2.comparison.fast.pq_summary.max_loading_pct >= r2.comparison.slow.pq_summary.max_loading_pct, ...
     'Fast charging comparison has loading at least as high as slow charging');
+assert_pass(isfield(r2, 'comparison_table') && height(r2.comparison_table) > 0, ...
+    'Scenario 2 comparison table is available');
 
 r3 = run_scenario3(cfg, data, net, assignment, pop, cal_struct, weather);
 assert_pass(isfield(r3, 'comfort_summary') && r3.comfort_summary.count > 0, ...
@@ -53,16 +64,25 @@ assert_pass(isfinite(r3.pq_summary.min_voltage_pu), 'Scenario 3 PQ summary is fi
 r4 = run_scenario4(cfg, data, net, assignment, pop, cal_struct, weather);
 assert_pass(r4.comfort_summary.mean >= 0 && r4.comfort_summary.mean <= 1, ...
     sprintf('Scenario 4 comfort mean is in [0,1]: %.3f', r4.comfort_summary.mean));
-assert_pass(size(r4.L_house_w, 2) == cfg.feeder.num_households, 'Scenario 4 household matrix width is correct');
+assert_pass(size(r4.L_feeder_w, 1) == cfg.simulation.Tsteps && size(r4.L_feeder_w, 2) == 3, ...
+    'Scenario 4 feeder matrix has expected lean-results shape T x 3');
+assert_pass(is_lean_compatible_result(r4), ...
+    sprintf('Scenario 4 result is compatible with storage mode: %s', get_storage_mode(r4)));
 
 r5 = run_scenario5(cfg, data, net, assignment, pop, cal_struct, weather);
-assert_pass(isfield(r5, 'schedules') && ~isempty(r5.schedules), 'Scenario 5 stores household schedules');
+assert_pass(isfield(r5, 'comfort_summary') && r5.comfort_summary.count > 0, ...
+    'Scenario 5 returns comfort summary; schedules may be omitted in lean mode');
 assert_pass(isfinite(r5.pq_summary.max_vuf_pct), 'Scenario 5 PQ summary is finite');
+assert_pass(is_lean_compatible_result(r5), ...
+    sprintf('Scenario 5 result is compatible with storage mode: %s', get_storage_mode(r5)));
 
 r6 = run_scenario6(cfg, data, net, assignment, pop, cal_struct, weather);
-assert_pass(isfield(r6, 'schedules') && ~isempty(r6.schedules), 'Scenario 6 stores feeder-supervisor schedules');
+assert_pass(isfield(r6, 'comfort_summary') && r6.comfort_summary.count > 0, ...
+    'Scenario 6 returns feeder-supervisor comfort summary; schedules may be omitted in lean mode');
 assert_pass(r6.comfort_summary.mean >= 0 && r6.comfort_summary.mean <= 1, ...
     sprintf('Scenario 6 comfort mean is in [0,1]: %.3f', r6.comfort_summary.mean));
+assert_pass(is_lean_compatible_result(r6), ...
+    sprintf('Scenario 6 result is compatible with storage mode: %s', get_storage_mode(r6)));
 
 allResults = run_all_scenarios(cfg, data, net, assignment, pop, cal_struct, weather, [-1 1 4]);
 assert_pass(numel(allResults) == 3 && allResults{2}.scenario_id == 1, ...
@@ -90,6 +110,20 @@ cfg.ev.v2g_enabled = true;
 cfg.pricing.active_methods = {'Block','Flat','TOU','RTP','Seasonal','CPP','RGDP'};
 cfg.pricing.main_method = 'TOU';
 cfg.dsm.max_coordination_iterations = 1;
+
+% Keep the production storage policy active during the test. This catches
+% tests that accidentally depend on huge full/debug result fields.
+if ~isfield(cfg, 'results') || ~isstruct(cfg.results)
+    cfg.results = struct();
+end
+cfg.results.storage_mode = 'lean';
+cfg.results.store_pq_timeseries = false;
+cfg.results.store_household_timeseries = false;
+cfg.results.store_s_series = false;
+cfg.results.store_schedules = false;
+cfg.results.store_price_series = false;
+cfg.results.store_l_feeder_w = true;
+
 cfg.output_dir = fullfile(cfg.root_folder, 'results', 'test_phase5');
 cfg.figs_dir = fullfile(cfg.output_dir, 'figures');
 cfg.tables_dir = fullfile(cfg.output_dir, 'tables');
@@ -156,6 +190,7 @@ for h = 1:H
 end
 pop.metadata = struct('config_hash', 'phase5_test', 'created_on', datestr(now, 31), ...
     'dt_min', cfg.simulation.dt_min, 'num_households', H, 'num_days', 1);
+pop.metadata.energy_kwh_total = sum(pop.L_house_w(:)) * cfg.simulation.dt_hr / 1000;
 end
 
 function flex = make_flex(pref, dur, powerW)
@@ -170,6 +205,34 @@ flex.latest_start_step = min(96 - dur + 1, pref + 8);
 flex.preferred_start_step = pref;
 flex.max_shift_steps = 8;
 flex.weight = 1.0;
+end
+
+function e = total_feeder_energy_kwh(r, cfg)
+% TOTAL_FEEDER_ENERGY_KWH Lean-safe total feeder energy from L_feeder_w.
+if isfield(r, 'L_feeder_w') && ~isempty(r.L_feeder_w)
+    e = sum(double(r.L_feeder_w(:))) * cfg.simulation.dt_hr / 1000;
+elseif isfield(r, 'L_house_w') && ~isempty(r.L_house_w)
+    e = sum(double(r.L_house_w(:))) * cfg.simulation.dt_hr / 1000;
+else
+    e = NaN;
+end
+end
+
+function tf = is_lean_compatible_result(r)
+% IS_LEAN_COMPATIBLE_RESULT Ensure tests do not require huge debug fields.
+mode = get_storage_mode(r);
+tf = isfield(r, 'pq_summary') && isfield(r, 'costs') && isfield(r, 'L_feeder_w');
+if strcmpi(mode, 'lean')
+    tf = tf && ~isfield(r, 'L_house_w') && ~isfield(r, 'S_series') && ~isfield(r, 'schedules');
+end
+end
+
+function mode = get_storage_mode(r)
+% GET_STORAGE_MODE Return result storage mode label.
+mode = 'unknown';
+if isfield(r, 'metadata') && isfield(r.metadata, 'storage_mode')
+    mode = char(string(r.metadata.storage_mode));
+end
 end
 
 function assert_pass(cond, msg)

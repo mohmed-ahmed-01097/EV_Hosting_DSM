@@ -1,4 +1,4 @@
-function supervisor = feeder_supervisor(cfg, net, assignment, householdProfiles, price_series)
+function supervisor = feeder_supervisor(cfg, net, assignment, householdProfiles, price_series, progress_cb)
 % FEEDER_SUPERVISOR Hierarchical feeder-level DSM coordination loop.
 %
 % Author: Mohammed Ahmed
@@ -10,6 +10,7 @@ function supervisor = feeder_supervisor(cfg, net, assignment, householdProfiles,
 %   assignment (struct): Household assignment from assign_households.
 %   householdProfiles (cell/struct array): Household profiles from simulate_household.
 %   price_series (W x 1 double): Electricity price [EGP/kWh].
+%   progress_cb (function handle, optional): Callback @(pct,msg) for UI/progress reporting.
 %
 % Outputs:
 %   supervisor (struct): Coordinated schedules, feeder load, PQ summary,
@@ -23,6 +24,9 @@ validateattributes(cfg, {'struct'}, {'scalar'}, mfilename, 'cfg', 1);
 validateattributes(net, {'struct'}, {'scalar'}, mfilename, 'net', 2);
 validateattributes(assignment, {'struct'}, {'scalar'}, mfilename, 'assignment', 3);
 validateattributes(price_series, {'numeric'}, {'vector','nonempty','finite'}, mfilename, 'price_series', 5);
+if nargin < 6 || isempty(progress_cb) || ~isa(progress_cb, 'function_handle')
+    progress_cb = @(pct, msg) [];
+end
 
 price = double(price_series(:));
 W = numel(price);
@@ -36,6 +40,8 @@ if isempty(maxIter) || maxIter < 1
     maxIter = 3;
 end
 
+progress_cb(0, sprintf('Feeder supervisor: optimizing %d households over %d steps', H, W));
+drawnow('limitrate');
 fprintf('[feeder_supervisor] Starting coordination: H=%d | W=%d | max_iter=%d\n', H, W, maxIter);
 
 % --- Section 2: Initial independent household optimization ---
@@ -62,6 +68,11 @@ for iter = 1:maxIter
     history(iter).max_loading_pct = pqSummary.max_loading_pct; %#ok<AGROW>
     history(iter).max_iuf_pct = pqSummary.max_iuf_pct; %#ok<AGROW>
     history(iter).max_ncr_pct = pqSummary.max_ncr_pct; %#ok<AGROW>
+
+    progress_cb(round(100 * iter / max(maxIter, 1)), ...
+        sprintf('Coordination iter %d/%d | VUF=%.2f%% | violations=%d', ...
+        iter, maxIter, pqSummary.max_vuf_pct, numel(violSteps)));
+    drawnow('limitrate');
 
     fprintf('[feeder_supervisor] Iteration %d | violations=%d | Vmin=%.3f pu | max VUF=%.3f%% | max TL=%.1f%%\n', ...
         iter, numel(violSteps), pqSummary.min_voltage_pu, pqSummary.max_vuf_pct, pqSummary.max_loading_pct);
@@ -122,6 +133,8 @@ supervisor.comfort_summary = struct('mean', mean(comfortValues), 'min', min(comf
 supervisor.total_cost_EGP = sum(cellfun(@(s) s.cost_EGP, schedules));
 supervisor.description = 'Hierarchical feeder supervisor for Phase 4 DSM coordination.';
 
+progress_cb(100, sprintf('Feeder supervisor complete | converged=%d | final violations=%d', supervisor.converged, numel(supervisor.violating_steps)));
+drawnow('limitrate');
 fprintf('[feeder_supervisor] Complete | converged=%d | final violations=%d | mean CI=%.3f\n', ...
     supervisor.converged, numel(supervisor.violating_steps), supervisor.comfort_summary.mean);
 end

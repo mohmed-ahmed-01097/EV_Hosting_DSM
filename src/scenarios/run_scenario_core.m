@@ -1,4 +1,4 @@
-function results = run_scenario_core(cfg, data, net, assignment, pop, cal_struct, weather, scenario_id, description, mode)
+function results = run_scenario_core(cfg, data, net, assignment, pop, cal_struct, weather, scenario_id, description, mode, progress_cb)
 % RUN_SCENARIO_CORE Shared Phase 5 scenario execution engine.
 %
 % Author: Mohammed Ahmed
@@ -35,6 +35,9 @@ validateattributes(scenario_id, {'numeric'}, {'scalar'}, mfilename, 'scenario_id
 if nargin < 10 || isempty(mode)
     mode = struct();
 end
+if nargin < 11 || isempty(progress_cb) || ~isa(progress_cb, 'function_handle')
+    progress_cb = @(pct, msg) [];
+end
 mode = normalize_mode(mode);
 
 tStartClock = tic;
@@ -47,8 +50,12 @@ base = normalize_population_matrices(pop, T, H);
 
 fprintf('[run_scenario_core] Scenario %g: %s | T=%d | H=%d | mode=%s\n', ...
     scenario_id, description, T, H, mode.dispatch_mode);
+progress_cb(5, sprintf('Scenario %g: initializing...', scenario_id));
+drawnow('limitrate');
 
 % --- Section 2: Build scenario load matrix ---
+progress_cb(10, sprintf('Scenario %g: building load matrix...', scenario_id));
+drawnow('limitrate');
 price = select_scenario_price(cfg, tvec, cal_eval);
 
 switch lower(mode.dispatch_mode)
@@ -77,7 +84,7 @@ switch lower(mode.dispatch_mode)
         [L_house_w, schedules, comfortValues] = apply_household_scheduling(base, cfg, assignment, price, mode, 'milp');
 
     case 'supervised_milp'
-        [L_house_w, schedules, comfortValues] = apply_supervised_scheduling(base, cfg, assignment, net, price, mode);
+        [L_house_w, schedules, comfortValues] = apply_supervised_scheduling(base, cfg, assignment, net, price, mode, progress_cb);
 
     otherwise
         error('run_scenario_core:unknownMode', 'Unknown dispatch mode: %s', mode.dispatch_mode);
@@ -86,10 +93,19 @@ end
 L_house_w = max(0, L_house_w);
 
 % --- Section 3: Feeder PQ evaluation ---
+progress_cb(50, sprintf('Scenario %g: running power flow...', scenario_id));
+drawnow('limitrate');
 [S_series, L_feeder_w] = assemble_feeder_power_series(L_house_w, assignment, net, cfg);
 [pq_timeseries, pq_summary] = evaluate_scenario_pq(S_series, net, assignment, cfg);
 
+if mode.ev_enabled
+    L_ev_per_bus = estimate_ev_harmonic_power_per_bus(cfg, assignment, net, L_house_w, mode);
+    [pq_timeseries, pq_summary] = augment_harmonic_pq_series(pq_timeseries, pq_summary, L_ev_per_bus, assignment, net, cfg);
+end
+
 % --- Section 4: Costs, comfort, hosting capacity, and output struct ---
+progress_cb(80, sprintf('Scenario %g: computing costs and comfort...', scenario_id));
+drawnow('limitrate');
 costs = compute_costs(cfg, L_house_w, tvec, cal_eval);
 comfortSummary = summarize_comfort(comfortValues, mode.dispatch_mode);
 hostingCapacityPct = estimate_hosting_capacity(cfg, base, assignment, net, cal_eval, mode);
@@ -121,9 +137,16 @@ if mode.compare_charger_types
     results.comparison = compare_slow_fast_uncontrolled(cfg, base, assignment, net, cal_eval, mode);
 end
 
-fprintf('[run_scenario_core] Scenario %g complete | Vmin=%.3f pu | max VUF=%.3f%% | max TL=%.1f%% | runtime=%.2fs\n', ...
+% Apply result-storage policy before returning. In normal thesis runs this keeps
+% the MAT file small by saving summaries and feeder-level outputs only, while
+% avoiding large per-step PQ structs, household matrices, and controller objects.
+results = apply_result_storage_policy(results, cfg);
+progress_cb(100, sprintf('Scenario %g complete.', scenario_id));
+drawnow('limitrate');
+
+fprintf('[run_scenario_core] Scenario %g complete | Vmin=%.3f pu | max VUF=%.3f%% | max TL=%.1f%% | runtime=%.2fs | storage=%s\n', ...
     scenario_id, results.pq_summary.min_voltage_pu, results.pq_summary.max_vuf_pct, ...
-    results.pq_summary.max_loading_pct, results.runtime_s);
+    results.pq_summary.max_loading_pct, results.runtime_s, results.metadata.storage_mode);
 end
 
 function mode = normalize_mode(mode)
@@ -269,7 +292,7 @@ end
 comfortValues = comfortValues(:);
 end
 
-function [L_house_w, schedules, comfortValues] = apply_supervised_scheduling(base, cfg, assignment, net, price, mode)
+function [L_house_w, schedules, comfortValues] = apply_supervised_scheduling(base, cfg, assignment, net, price, mode, progress_cb)
 % APPLY_SUPERVISED_SCHEDULING Run feeder supervisor day by day.
 [T, H] = size(base.L_house_w);
 stepsPerDay = 24 * 60 / cfg.simulation.dt_min;
@@ -285,7 +308,8 @@ for day = 1:numDays
     for h = 1:H
         hhCells{h} = build_daily_household(base, assignment, cfg, h, idx, day, mode);
     end
-    sup = feeder_supervisor(cfg, net, assignment, hhCells, priceDay);
+    dayProgress = @(pct, msg) progress_cb(min(99, round(((day - 1) + pct/100) * 100 / max(numDays,1))), msg);
+    sup = feeder_supervisor(cfg, net, assignment, hhCells, priceDay, dayProgress);
     L_house_w(idx, :) = resize_matrix_to(sup.L_house_w, W, H, 0);
     schedules{day} = sup;
     if isfield(sup, 'schedules')
@@ -561,6 +585,69 @@ summary.non_converged_steps = find(nonConv);
 summary.has_violations = any(viol);
 end
 
+function L_ev_per_bus = estimate_ev_harmonic_power_per_bus(cfg, assignment, net, L_house_w, mode)
+% ESTIMATE_EV_HARMONIC_POWER_PER_BUS Estimate per-bus EV charger harmonic injection.
+[~, H] = size(L_house_w);
+L_ev_per_bus = zeros(1, net.n_buses);
+for h = 1:H
+    if ~is_household_ev_owner(assignment, h, mode.ev_penetration_override)
+        continue;
+    end
+    if ~isfield(assignment, 'bus_id') || assignment.bus_id(h) < 1
+        continue;
+    end
+    chargerType = assignment.charger_type{h};
+    if ~isempty(mode.charger_override)
+        chargerType = mode.charger_override;
+    end
+    if strcmpi(chargerType, 'none') || isempty(chargerType)
+        chargerType = 'slow';
+    end
+    switch lower(chargerType)
+        case 'slow'
+            pRated = cfg.ev.slow_kw * 1000;
+        otherwise
+            pRated = cfg.ev.fast_kw * 1000;
+    end
+    b = max(1, min(net.n_buses, round(double(assignment.bus_id(h)))));
+    % Use a conservative mean active charging proxy. It is intentionally
+    % decoupled from base household demand so THD KPIs are not permanent zeros.
+    pProxy = min(pRated, max(0, mean(max(0, L_house_w(:, h))) * 0.35));
+    if pProxy < 1
+        pProxy = 0.25 * pRated;
+    end
+    L_ev_per_bus(b) = L_ev_per_bus(b) + pProxy;
+end
+end
+
+function [pq_timeseries, summary] = augment_harmonic_pq_series(pq_timeseries, summary, L_ev_per_bus, assignment, net, cfg)
+% AUGMENT_HARMONIC_PQ_SERIES Add EV harmonic indices and update summary fields.
+maxThdi = 0;
+maxThdv = 0;
+maxK = 1;
+violThdi = false;
+violThdv = false;
+for t = 1:numel(pq_timeseries)
+    if isempty(pq_timeseries{t})
+        continue;
+    end
+    pq_timeseries{t} = compute_harmonic_pq(pq_timeseries{t}, L_ev_per_bus, assignment, net, cfg);
+    maxThdi = max(maxThdi, max(pq_timeseries{t}.THDi_pct(:)));
+    maxThdv = max(maxThdv, max(pq_timeseries{t}.THDv_pct(:)));
+    maxK = max(maxK, max(pq_timeseries{t}.Kfactor(:)));
+    if isfield(pq_timeseries{t}, 'violations')
+        violThdi = violThdi || pq_timeseries{t}.violations.thdi;
+        violThdv = violThdv || pq_timeseries{t}.violations.thdv;
+    end
+end
+summary.max_thdi_pct = maxThdi;
+summary.max_thdv_pct = maxThdv;
+summary.max_kfactor = maxK;
+summary.harmonic_thdi_violation = violThdi;
+summary.harmonic_thdv_violation = violThdv;
+summary.has_violations = summary.has_violations || violThdi || violThdv;
+end
+
 function comfortSummary = summarize_comfort(comfortValues, dispatchMode)
 % SUMMARIZE_COMFORT Return mean/min/max CI.
 vals = comfortValues(:);
@@ -676,6 +763,112 @@ function sch = strip_large_problem_field(sch)
 % STRIP_LARGE_PROBLEM_FIELD Remove MILP matrices from stored scenario schedules.
 if isfield(sch, 'problem')
     sch = rmfield(sch, 'problem');
+end
+end
+
+
+function results = apply_result_storage_policy(results, cfg)
+% APPLY_RESULT_STORAGE_POLICY Reduce scenario result size for normal thesis runs.
+%
+% storage_mode options:
+%   lean  - recommended default; keep summaries, costs, and feeder-level load only.
+%   full  - keep all internal fields for debugging and method development.
+%   debug - same as full.
+
+policy = default_result_policy();
+if isfield(cfg, 'results') && isstruct(cfg.results)
+    names = fieldnames(cfg.results);
+    for k = 1:numel(names)
+        policy.(names{k}) = cfg.results.(names{k});
+    end
+end
+
+mode = char(string(get_policy_text(policy, 'storage_mode', 'lean')));
+modeLower = lower(strtrim(mode));
+if any(strcmp(modeLower, {'full','debug'}))
+    results.metadata.storage_mode = modeLower;
+    results.metadata.storage_note = 'Full/debug mode: large internal fields retained. MAT files may be several GB.';
+    return;
+end
+
+results.metadata.storage_mode = 'lean';
+results.metadata.storage_note = ['Lean mode: full internal PQ time-series, household matrices, ' ...
+    'S-series, controller schedules, and price vectors are omitted from saved scenario results.'];
+
+if ~get_policy_logical(policy, 'store_pq_timeseries', false) && isfield(results, 'pq_timeseries')
+    results = rmfield(results, 'pq_timeseries');
+end
+if ~get_policy_logical(policy, 'store_household_timeseries', false) && isfield(results, 'L_house_w')
+    results = rmfield(results, 'L_house_w');
+end
+if ~get_policy_logical(policy, 'store_s_series', false) && isfield(results, 'S_series')
+    results = rmfield(results, 'S_series');
+end
+if ~get_policy_logical(policy, 'store_schedules', false) && isfield(results, 'schedules')
+    results = rmfield(results, 'schedules');
+end
+if ~get_policy_logical(policy, 'store_price_series', false) && isfield(results, 'costs') && ...
+        isstruct(results.costs) && isfield(results.costs, 'price_series')
+    results.costs = rmfield(results.costs, 'price_series');
+end
+if ~get_policy_logical(policy, 'store_l_feeder_w', true) && isfield(results, 'L_feeder_w')
+    results = rmfield(results, 'L_feeder_w');
+end
+
+if get_policy_logical(policy, 'use_single_precision_for_saved_timeseries', true)
+    if isfield(results, 'L_feeder_w') && isnumeric(results.L_feeder_w)
+        results.L_feeder_w = single(results.L_feeder_w);
+    end
+    if isfield(results, 'comparison') && isstruct(results.comparison)
+        labels = fieldnames(results.comparison);
+        for i = 1:numel(labels)
+            label = labels{i};
+            if isfield(results.comparison.(label), 'L_feeder_w') && isnumeric(results.comparison.(label).L_feeder_w)
+                results.comparison.(label).L_feeder_w = single(results.comparison.(label).L_feeder_w);
+            end
+            if isfield(results.comparison.(label), 'costs') && isstruct(results.comparison.(label).costs) && ...
+                    isfield(results.comparison.(label).costs, 'price_series') && ...
+                    ~get_policy_logical(policy, 'store_price_series', false)
+                results.comparison.(label).costs = rmfield(results.comparison.(label).costs, 'price_series');
+            end
+        end
+    end
+end
+end
+
+function policy = default_result_policy()
+% DEFAULT_RESULT_POLICY Storage defaults used when cfg.results is absent.
+policy = struct();
+policy.storage_mode = 'lean';
+policy.store_pq_timeseries = false;
+policy.store_household_timeseries = false;
+policy.store_s_series = false;
+policy.store_schedules = false;
+policy.store_price_series = false;
+policy.store_l_feeder_w = true;
+policy.use_single_precision_for_saved_timeseries = true;
+end
+
+function tf = get_policy_logical(policy, fieldName, defaultValue)
+% GET_POLICY_LOGICAL Robust logical result policy read.
+tf = defaultValue;
+if isfield(policy, fieldName) && ~isempty(policy.(fieldName))
+    v = policy.(fieldName);
+    if islogical(v)
+        tf = logical(v(1));
+    elseif isnumeric(v)
+        tf = v(1) ~= 0;
+    elseif ischar(v) || isstring(v)
+        tf = any(strcmpi(char(string(v)), {'true','yes','1','on'}));
+    end
+end
+end
+
+function txt = get_policy_text(policy, fieldName, defaultValue)
+% GET_POLICY_TEXT Robust text result policy read.
+txt = defaultValue;
+if isfield(policy, fieldName) && ~isempty(policy.(fieldName))
+    txt = char(string(policy.(fieldName)));
 end
 end
 

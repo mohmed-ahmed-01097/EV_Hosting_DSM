@@ -66,7 +66,9 @@
     "arrival_mean_hour": 18.0,
     "arrival_std_hour": 1.5,
     "departure_mean_hour": 7.5,
-    "departure_std_hour": 1.0
+    "departure_std_hour": 1.0,
+    "v2g_revenue_fraction": 0.5,
+    "v2g_reserve_soc_pct": 30
   },
   "pq_limits": {
     "vuf_max_pct": 2.0,
@@ -96,7 +98,9 @@
       "EV_Charger": 0.5,
       "Water_Heater": 1.5,
       "Iron": 1.2
-    }
+    },
+    "lambda_comfort": 0.001,
+    "comfort_ci_threshold": 0.3
   },
   "pricing": {
     "active_methods": [
@@ -188,5 +192,17 @@
   "survey_paths": {
     "xlsx": "data/survey/Household_Energy_Survey.xlsx",
     "mat": "data/survey/Household_Energy_Survey.mat"
+  },
+  "results": {
+    "_comment": "Result storage policy. lean is recommended for normal thesis runs; full/debug stores all internal time-series and can become very large.",
+    "storage_mode": "lean",
+    "save_mat_file": true,
+    "store_pq_timeseries": false,
+    "store_household_timeseries": false,
+    "store_s_series": false,
+    "store_schedules": false,
+    "store_price_series": false,
+    "store_l_feeder_w": true,
+    "use_single_precision_for_saved_timeseries": true
   }
 }

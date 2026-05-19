@@ -94,7 +94,8 @@ if ev.present
         ub(idx.ev(t)) = evUb;
         ub(idx.v2g(t)) = v2gUb;
         f(idx.ev(t)) = price(t) * dtHr / 1000;
-        f(idx.v2g(t)) = -0.50 * price(t) * dtHr / 1000;
+        v2gRevFrac = get_scalar_or_default(cfg.ev, 'v2g_revenue_fraction', 0.50);
+        f(idx.v2g(t)) = -v2gRevFrac * price(t) * dtHr / 1000;
     end
     socMin = cfg.ev.soc_min_pct / 100 * ev.battery_kwh * 1000;
     socMax = ev.battery_kwh * 1000;

@@ -1,4 +1,4 @@
-function pop = simulate_population(cfg, data, assignment, net, cal_struct, weather)
+function pop = simulate_population(cfg, data, assignment, net, cal_struct, weather, progress_cb)
 % SIMULATE_POPULATION Simulate household profiles over the configured period.
 %
 % Author: Mohammed Ahmed
@@ -17,6 +17,7 @@ function pop = simulate_population(cfg, data, assignment, net, cal_struct, weath
 %
 % Example:
 %   pop = simulate_population(cfg, data, assignment, net, cal, weather);
+%   pop = simulate_population(cfg, data, assignment, net, cal, weather, @(p,m) fprintf('%d%% %s\n',p,m));
 
 % --- Section 1: Validate inputs and cache ---
 validateattributes(cfg, {'struct'}, {'scalar'}, mfilename, 'cfg', 1);
@@ -25,6 +26,9 @@ validateattributes(assignment, {'struct'}, {'scalar'}, mfilename, 'assignment', 
 validateattributes(net, {'struct'}, {'scalar'}, mfilename, 'net', 4); %#ok<INUSD>
 validateattributes(cal_struct, {'struct'}, {'scalar'}, mfilename, 'cal_struct', 5);
 validateattributes(weather, {'struct'}, {'scalar'}, mfilename, 'weather', 6);
+if nargin < 7 || isempty(progress_cb) || ~isa(progress_cb, 'function_handle')
+    progress_cb = @(pct, msg) [];
+end
 
 H = cfg.feeder.num_households;
 stepsPerDay = 24 * 60 / cfg.simulation.dt_min;
@@ -39,6 +43,8 @@ if isfile(cacheFile)
     if isfield(cached, 'pop') && isfield(cached.pop, 'metadata') && ...
             isfield(cached.pop.metadata, 'config_hash') && strcmp(cached.pop.metadata.config_hash, configHash)
         pop = cached.pop;
+        progress_cb(100, sprintf('Loaded cached population profiles: %s', cacheFile));
+        drawnow('limitrate');
         fprintf('[simulate_population] Loaded cached population profiles: %s\n', cacheFile);
         return;
     end
@@ -58,6 +64,9 @@ fprintf('[simulate_population] Simulating %d households x %d days at dt=%d min..
 
 % --- Section 3: Day-by-day, household-by-household simulation ---
 for day = 1:numDays
+    pct = round(100 * day / max(numDays, 1));
+    progress_cb(pct, sprintf('Simulating day %d / %d', day, numDays));
+    drawnow('limitrate');
     if mod(day, 10) == 0 || day == 1 || day == numDays
         fprintf('  [simulate_population] Day %d / %d\n', day, numDays);
     end
@@ -88,6 +97,8 @@ pop.metadata.num_days = numDays;
 pop.metadata.energy_kwh_total = sum(pop.L_house_w(:)) * cfg.simulation.dt_hr / 1000;
 
 save(cacheFile, 'pop', '-v7.3');
+progress_cb(100, sprintf('Population simulation complete. Saved to %s', cacheFile));
+drawnow('limitrate');
 fprintf('[simulate_population] Done. Saved to %s | total energy %.1f kWh\n', ...
     cacheFile, pop.metadata.energy_kwh_total);
 end

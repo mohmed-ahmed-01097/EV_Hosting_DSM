@@ -318,3 +318,28 @@ results/tables/scenario_comfort_summary.csv
 results/tables/scenario_violations.csv
 results/tables/deliverables_checklist.csv
 ```
+
+
+## Result file size policy
+
+The default project configuration uses lean scenario-result storage:
+
+```json
+"results": {
+  "storage_mode": "lean",
+  "store_pq_timeseries": false,
+  "store_household_timeseries": false,
+  "store_s_series": false,
+  "store_schedules": false,
+  "store_price_series": false,
+  "store_l_feeder_w": true,
+  "use_single_precision_for_saved_timeseries": true
+}
+```
+
+This is the recommended mode for thesis runs. It keeps `results/scenario_results.mat` focused on summaries, costs, comfort, hosting capacity, and feeder-level load profiles. Full internal debugging fields can be several GB because they include one PQ struct per time step, household-level matrices, and controller schedules. Use `"storage_mode": "full"` only for short debug simulations.
+
+
+## Phase 10 PART A Bug Fixes
+
+This package includes the mandatory PART A bug fixes from `EV_DSM_BugFix_and_UI_Prompt.md`: config fields, neutral multiplier, V2G revenue fraction, progress callbacks, harmonic PQ integration, UQ utilities, Scenario 2 slow/fast sub-results, and compiled-safe path helper. See `docs/PHASE10_PART_A_BUG_FIXES_IMPLEMENTED.md`.

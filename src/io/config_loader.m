@@ -29,9 +29,13 @@ function cfg = config_loader(config_path)
 %   cfg = config_loader('config/scenario_configs/scenario1.json');
 
 % --- Section 1: Locate project root ---
-ioDir = fileparts(mfilename('fullpath'));     % EV_Hosting_DSM/src/io
-srcDir = fileparts(ioDir);                    % EV_Hosting_DSM/src
-rootDir = fileparts(srcDir);                  % EV_Hosting_DSM
+if isdeployed
+    rootDir = ctfroot;
+else
+    ioDir = fileparts(mfilename('fullpath'));     % EV_Hosting_DSM/src/io
+    srcDir = fileparts(ioDir);                    % EV_Hosting_DSM/src
+    rootDir = fileparts(srcDir);                  % EV_Hosting_DSM
+end
 
 % --- Section 2: Load default configuration ---
 defaultPath = fullfile(rootDir, 'config', 'default_config.json');
@@ -178,7 +182,11 @@ end
 % The configured output_dir is normally the relative folder "results".
 % Resolve it dynamically so the project can be moved to any drive or PC
 % without hardcoded local paths. Absolute override paths are preserved.
-cfg.output_dir = resolve_project_path(rootDir, cfg.output_dir);
+if isdeployed
+    cfg.output_dir = fullfile(get_user_writable_root(), 'EV_DSM_Results');
+else
+    cfg.output_dir = resolve_project_path(rootDir, cfg.output_dir);
+end
 cfg.figs_dir = fullfile(cfg.output_dir, 'figures');
 cfg.tables_dir = fullfile(cfg.output_dir, 'tables');
 
@@ -249,6 +257,29 @@ end
 % Unix/macOS absolute path.
 if pathValue(1) == '/'
     tf = true;
+end
+end
+
+function rootPath = get_user_writable_root()
+% GET_USER_WRITABLE_ROOT Return a user-writable folder for compiled apps.
+rootPath = userpath;
+if iscell(rootPath)
+    rootPath = rootPath{1};
+end
+if isstring(rootPath)
+    rootPath = char(rootPath);
+end
+if isempty(rootPath)
+    rootPath = fullfile(tempdir, 'EV_Hosting_DSM_User');
+else
+    parts = strsplit(rootPath, pathsep);
+    rootPath = parts{1};
+end
+if isempty(rootPath)
+    rootPath = fullfile(tempdir, 'EV_Hosting_DSM_User');
+end
+if ~exist(rootPath, 'dir')
+    mkdir(rootPath);
 end
 end
 
