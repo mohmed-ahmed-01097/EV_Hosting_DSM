@@ -152,6 +152,15 @@ properties (Access = private)
     ExportDateEdit
     ExportLatexStatusText
 
+    TestsTable
+    TestsDetailText
+    TestsSummaryLabel
+    TestsProgressLabel
+    TestsRunAllButton
+    TestsRunSelectedButton
+    TestsClearButton
+    TestsSaveButton
+
     ScenarioStopRequested logical = false
 end
 
@@ -257,7 +266,7 @@ methods (Access = private)
         app.ScenariosPanel = makeBasePanel(app);
         app.ResultsPanel   = makeBasePanel(app);
         app.ExportPanel    = makeBasePanel(app);
-        app.TestsPanel     = makePlaceholderPanel(app, 'Tests', 'Step 15 will add interactive test runner and result table.');
+        app.TestsPanel     = makeBasePanel(app);
 
         createDashboardView(app);
         createConfigView(app);
@@ -267,6 +276,7 @@ methods (Access = private)
         createScenariosView(app);
         createResultsView(app);
         createExportView(app);
+        createTestsView(app);
     end
 
     function panel = makeBasePanel(app)
@@ -700,6 +710,53 @@ methods (Access = private)
             'Position', [15 8 1070 25], 'Value', {'Export system ready.'});
     end
 
+    function createTestsView(app)
+        % CREATETESTSVIEW Build Step 15 interactive validation runner UI.
+        c = app.Theme.colors;
+        p = app.TestsPanel;
+        addHeader(app, p, 'Tests', 'Run validation suites from the app, monitor status, inspect details, and save a report.');
+
+        controlCard = makeCard(app, p, 'Test Controls', [24 640 1100 90]);
+        app.TestsRunAllButton = uibutton(controlCard, 'push', 'Text', 'Run All Tests', ...
+            'FontWeight', 'bold', 'Position', [20 28 130 34], ...
+            'ButtonPushedFcn', @(~, ~) onRunAllUiTests(app));
+        app.TestsRunSelectedButton = uibutton(controlCard, 'push', 'Text', 'Run Selected', ...
+            'Position', [165 28 130 34], 'ButtonPushedFcn', @(~, ~) onRunSelectedUiTests(app));
+        app.TestsClearButton = uibutton(controlCard, 'push', 'Text', 'Clear Results', ...
+            'Position', [310 28 120 34], 'ButtonPushedFcn', @(~, ~) onClearUiTests(app));
+        app.TestsSaveButton = uibutton(controlCard, 'push', 'Text', 'Save Test Report', ...
+            'Position', [445 28 145 34], 'ButtonPushedFcn', @(~, ~) onSaveUiTestReport(app));
+        app.TestsSummaryLabel = uilabel(controlCard, 'Text', 'Ready. Select tests and run.', ...
+            'FontColor', c.text_light, 'FontWeight', 'bold', 'Position', [620 40 440 22]);
+        app.TestsProgressLabel = uilabel(controlCard, 'Text', '[--------------------] 0%', ...
+            'FontName', app.Theme.font.mono, 'FontColor', c.accent, ...
+            'HorizontalAlignment', 'left', 'Position', [620 16 400 22]);
+
+        tableCard = makeCard(app, p, 'Validation Test Matrix', [24 250 690 370]);
+        app.TestsTable = uitable(tableCard, ...
+            'Position', [15 15 660 315], ...
+            'ColumnName', {'Run','Test','Status','Time_s','Last result'}, ...
+            'ColumnEditable', [true false false false false], ...
+            'ColumnFormat', {'logical','char','char','numeric','char'}, ...
+            'CellSelectionCallback', @(~, event) onTestTableSelection(app, event), ...
+            'Data', buildInitialTestTable(app));
+
+        detailCard = makeCard(app, p, 'DETAIL', [734 250 390 370]);
+        app.TestsDetailText = uitextarea(detailCard, 'Editable', 'off', ...
+            'FontName', app.Theme.font.mono, 'FontSize', 10, ...
+            'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [15 15 360 315], ...
+            'Value', {'Click a test row to show details.', 'Use Run Selected for shorter validation cycles.'});
+
+        summaryCard = makeCard(app, p, 'Execution Notes', [24 95 1100 130]);
+        uitextarea(summaryCard, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
+            'FontSize', 10, 'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [15 15 1070 82], ...
+            'Value', {'Compiled-safe test execution: sequential for-loop, no parfeval, no parfor.', ...
+                      'Long scenario/visualization tests may still take time. The UI remains responsive through drawnow(''limitrate'').', ...
+                      'Reports are saved under <project_root>/results/tables/ui_test_report.csv.'});
+    end
+
     function createResultsPqDashboard(app, panel)
         % CREATERESULTSPQDASHBOARD Build KPI text, PQ plot, and bus voltage map.
         c = app.Theme.colors;
@@ -934,6 +991,7 @@ methods (Access = private)
         onCalculateBlockBill(app);
         refreshResultsView(app);
         refreshExportView(app);
+        refreshTestsView(app);
     end
 
     function refreshDashboard(app)
@@ -2150,6 +2208,174 @@ methods (Access = private)
         if isempty(keys), keys = {'scenario_summary'}; end
     end
 
+    function data = buildInitialTestTable(app)
+        % BUILDINITIALTESTTABLE Return default Tests view table data.
+        names = appDefaultTestNames();
+        data = cell(numel(names), 5);
+        for k = 1:numel(names)
+            data{k,1} = true;
+            data{k,2} = names{k};
+            data{k,3} = 'Queued';
+            data{k,4} = NaN;
+            data{k,5} = 'Not run yet';
+        end
+    end
+
+    function refreshTestsView(app)
+        % REFRESHTESTSVIEW Ensure table is initialized and summary is current.
+        if isempty(app.TestsTable) || ~isvalid(app.TestsTable)
+            return;
+        end
+        if isempty(app.TestsTable.Data)
+            app.TestsTable.Data = buildInitialTestTable(app);
+        end
+        updateTestsSummary(app);
+    end
+
+    function onRunAllUiTests(app)
+        % ONRUNALLUITESTS Mark all rows selected and run them.
+        data = app.TestsTable.Data;
+        for k = 1:size(data, 1)
+            data{k, 1} = true;
+        end
+        app.TestsTable.Data = data;
+        runUiTests(app, true);
+    end
+
+    function onRunSelectedUiTests(app)
+        % ONRUNSELECTEDUITESTS Run only checked tests.
+        runUiTests(app, false);
+    end
+
+    function runUiTests(app, includeAll)
+        % RENUITESTS Sequential, compiled-safe UI test runner.
+        if nargin < 2, includeAll = false; end
+        data = app.TestsTable.Data;
+        if isempty(data)
+            data = buildInitialTestTable(app);
+        end
+        total = size(data, 1);
+        selected = false(total, 1);
+        for k = 1:total
+            selected(k) = includeAll || logical(data{k, 1});
+        end
+        nSelected = sum(selected);
+        if nSelected == 0
+            app.TestsDetailText.Value = {'No tests selected.'};
+            updateStatus(app, 'No tests selected', 'warning');
+            return;
+        end
+
+        app.TestsRunAllButton.Enable = 'off';
+        app.TestsRunSelectedButton.Enable = 'off';
+        cleanupObj = onCleanup(@() restoreTestButtons(app));
+        updateStatus(app, 'Running UI tests...', 'warning');
+        log(app, sprintf('Tests view: running %d selected test(s).', nSelected));
+
+        done = 0;
+        for k = 1:total
+            if ~selected(k), continue; end
+            testName = data{k, 2};
+            data{k, 3} = 'Running';
+            data{k, 5} = 'Executing...';
+            app.TestsTable.Data = data;
+            updateUiTestProgress(app, done, nSelected, sprintf('Running %s', testName));
+            drawnow('limitrate');
+
+            result = app_test_runner(testName);
+            done = done + 1;
+            data{k, 3} = result.status;
+            data{k, 4} = result.time_s;
+            data{k, 5} = result.message;
+            app.TestsTable.Data = data;
+            app.TestsDetailText.Value = result.detail(:);
+            log(app, sprintf('Test %s: %s (%.2fs)', testName, result.status, result.time_s));
+            updateUiTestProgress(app, done, nSelected, sprintf('Completed %s', testName));
+            drawnow('limitrate');
+        end
+
+        updateTestsSummary(app);
+        updateStatus(app, 'Tests complete', 'success');
+    end
+
+    function restoreTestButtons(app)
+        % RESTORETESTBUTTONS Re-enable test buttons after execution/errors.
+        if ~isempty(app.TestsRunAllButton) && isvalid(app.TestsRunAllButton)
+            app.TestsRunAllButton.Enable = 'on';
+        end
+        if ~isempty(app.TestsRunSelectedButton) && isvalid(app.TestsRunSelectedButton)
+            app.TestsRunSelectedButton.Enable = 'on';
+        end
+    end
+
+    function updateUiTestProgress(app, done, total, msg)
+        % UPDATEUITESTPROGRESS Update Tests view and global progress labels.
+        if total <= 0, pct = 0; else, pct = round(100 * done / total); end
+        nBlocks = 20;
+        nFill = round(nBlocks * pct / 100);
+        app.TestsProgressLabel.Text = ['[', repmat('#', 1, nFill), repmat('-', 1, nBlocks - nFill), sprintf('] %3d%%', pct)];
+        app.TestsSummaryLabel.Text = sprintf('%d/%d completed — %s', done, total, msg);
+        updateProgress(app, pct, msg);
+    end
+
+    function updateTestsSummary(app)
+        % UPDATETESTSSUMMARY Update PASS/FAIL/PENDING summary labels.
+        if isempty(app.TestsTable) || ~isvalid(app.TestsTable), return; end
+        data = app.TestsTable.Data;
+        if isempty(data), return; end
+        statuses = string(data(:,3));
+        passCount = sum(statuses == "PASS");
+        failCount = sum(statuses == "FAIL");
+        runCount = sum(statuses == "PASS" | statuses == "FAIL");
+        total = numel(statuses);
+        app.TestsSummaryLabel.Text = sprintf('%d/%d run | PASS=%d | FAIL=%d | Pending=%d', ...
+            runCount, total, passCount, failCount, total - runCount);
+    end
+
+    function onClearUiTests(app)
+        % ONCLEARUITESTS Reset table and details.
+        app.TestsTable.Data = buildInitialTestTable(app);
+        app.TestsDetailText.Value = {'Test results cleared.'};
+        updateTestsSummary(app);
+        updateUiTestProgress(app, 0, 1, 'cleared');
+        log(app, 'Tests view cleared.');
+    end
+
+    function onSaveUiTestReport(app)
+        % ONSAVEUITESTREPORT Write Tests view table to CSV in results/tables.
+        try
+            if isempty(app.cfg) || ~isfield(app.cfg, 'tables_dir')
+                app.cfg = config_loader([]);
+            end
+            if exist(app.cfg.tables_dir, 'dir') ~= 7, mkdir(app.cfg.tables_dir); end
+            data = app.TestsTable.Data;
+            T = cell2table(data, 'VariableNames', {'Run','Test','Status','Time_s','LastResult'});
+            outFile = fullfile(app.cfg.tables_dir, 'ui_test_report.csv');
+            writetable(T, outFile);
+            app.TestsDetailText.Value = {sprintf('Saved test report: %s', outFile)};
+            log(app, sprintf('Saved UI test report: %s', outFile));
+        catch ME
+            app.TestsDetailText.Value = {sprintf('Failed to save test report: %s', ME.message)};
+            log(app, sprintf('Failed to save test report: %s', ME.message));
+        end
+    end
+
+    function onTestTableSelection(app, event)
+        % ONTESTTABLESELECTION Show selected test details.
+        try
+            if isempty(event.Indices), return; end
+            row = event.Indices(1);
+            data = app.TestsTable.Data;
+            if row < 1 || row > size(data, 1), return; end
+            app.TestsDetailText.Value = { ...
+                sprintf('Test: %s', data{row,2}), ...
+                sprintf('Status: %s', data{row,3}), ...
+                sprintf('Time_s: %.3g', data{row,4}), ...
+                sprintf('Last result: %s', data{row,5})};
+        catch
+        end
+    end
+
     function switchView(app, viewId)
         % SWITCHVIEW Hide all content panels and show one selected panel.
         panels = {app.DashboardPanel, app.ConfigPanel, app.FeederPanel, ...
@@ -2177,6 +2403,8 @@ methods (Access = private)
             refreshResultsView(app);
         elseif viewId == 8
             refreshExportView(app);
+        elseif viewId == 9
+            refreshTestsView(app);
         end
         updateStatus(app, sprintf('View: %s', app.Theme.nav.labels{viewId}), 'info');
     end
@@ -2242,17 +2470,9 @@ methods (Access = private)
     end
 
     function onRunTests(app)
-        % ONRUNTESTS Quick-action test runner placeholder.
-        log(app, 'Running validation tests from UI...');
-        updateStatus(app, 'Running tests...', 'warning');
-        try
-            run_config_tests();
-            updateStatus(app, 'Tests completed', 'success');
-            log(app, 'Validation tests completed. See MATLAB command window for details.');
-        catch ME
-            updateStatus(app, sprintf('Tests failed: %s', ME.message), 'danger');
-            log(app, sprintf('Tests failed: %s', ME.message));
-        end
+        % ONRUNTESTS Dashboard quick action: switch to Tests view and run all.
+        switchView(app, 9);
+        onRunAllUiTests(app);
     end
 
     function onOpenResultsFolder(app)

@@ -478,3 +478,14 @@ Validate Step 13:
 ```matlab
 test_part_b_step13_results_view()
 ```
+
+
+## Phase 10 PART B Step 15 — Tests View
+
+The UI now includes an interactive Tests view with a validation matrix, Run All / Run Selected controls, status tracking, detail output, and CSV report export to `results/tables/ui_test_report.csv`.
+
+Validate the step with:
+
+```matlab
+test_part_b_step15_tests_view()
+```
