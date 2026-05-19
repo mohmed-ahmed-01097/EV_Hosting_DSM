@@ -19,6 +19,26 @@ Implemented status in this package:
 - [x] Phase 8 - Final validation test suite
 - [x] Phase 9 - Main runner and thesis table export
 
+## Phase 10 PART B - Step 14 Export View
+
+This package implements the Export view in the MATLAB UI. It can export selected/all thesis figures, scenario CSV tables, and a LaTeX report from lean scenario results.
+
+Key files:
+
+```text
+src/ui/EVHostingDSM_App.m
+src/ui/app_helpers/app_export_helper.m
+tests/test_part_b_step14_export_view.m
+```
+
+Launch:
+
+```matlab
+run startup.m
+launch_app()
+```
+
+
 ## Validate the implemented phases
 
 From MATLAB R2022b or newer:

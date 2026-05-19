@@ -14,8 +14,8 @@ classdef EVHostingDSM_App < matlab.apps.AppBase
 %   app = EVHostingDSM_App();
 %
 % Notes:
-%   PART B Step 13 implements Dashboard, Config, Feeder, Load, Pricing,
-%   Scenarios, and Results. Export and Tests views are intentionally left
+%   PART B Step 14 implements Dashboard, Config, Feeder, Load, Pricing,
+%   Scenarios, Results, and Export. Tests view is intentionally left
 %   for later steps.
 
 properties (Access = public)
@@ -140,6 +140,18 @@ properties (Access = private)
     ResultsUqRunsSpinner
     ResultsUqTable
 
+    ExportFigureChecks
+    ExportFormatPngCheck
+    ExportFormatEpsCheck
+    ExportFormatSvgCheck
+    ExportSizeDropDown
+    ExportFolderEdit
+    ExportStatusText
+    ExportCsvChecks
+    ExportAuthorEdit
+    ExportDateEdit
+    ExportLatexStatusText
+
     ScenarioStopRequested logical = false
 end
 
@@ -244,7 +256,7 @@ methods (Access = private)
         app.PricingPanel   = makeBasePanel(app);
         app.ScenariosPanel = makeBasePanel(app);
         app.ResultsPanel   = makeBasePanel(app);
-        app.ExportPanel    = makePlaceholderPanel(app, 'Export', 'Step 14 will add figure, CSV, and LaTeX export controls.');
+        app.ExportPanel    = makeBasePanel(app);
         app.TestsPanel     = makePlaceholderPanel(app, 'Tests', 'Step 15 will add interactive test runner and result table.');
 
         createDashboardView(app);
@@ -254,6 +266,7 @@ methods (Access = private)
         createPricingView(app);
         createScenariosView(app);
         createResultsView(app);
+        createExportView(app);
     end
 
     function panel = makeBasePanel(app)
@@ -617,6 +630,76 @@ methods (Access = private)
         switchResultsSubView(app, 1);
     end
 
+    function createExportView(app)
+        % CREATEEXPORTVIEW Build Step 14 figure/CSV/LaTeX export UI.
+        c = app.Theme.colors;
+        p = app.ExportPanel;
+        addHeader(app, p, 'Export', 'Export thesis-ready figures, CSV tables, and a LaTeX report from lean scenario results.');
+
+        figCard = makeCard(app, p, 'Figure Export', [24 455 1100 275]);
+        figNames = {'VUF Comparison Bar Chart','Hosting Capacity Curve','Load Profiles Summer+Winter', ...
+            'Monthly Bill Box Plots','Tariff Slab Migration Chart','Bus Voltage Map','PQ Time-Series'};
+        figKeys = {'vuf_comparison','hosting_capacity','load_profiles','monthly_bill_box', ...
+            'tariff_slab_migration','bus_voltage_map','pq_timeseries'};
+        app.ExportFigureChecks = gobjects(numel(figNames), 1);
+        for k = 1:numel(figNames)
+            col = floor((k-1) / 4);
+            row = mod(k-1, 4);
+            app.ExportFigureChecks(k) = uicheckbox(figCard, 'Text', figNames{k}, ...
+                'FontColor', c.text_light, 'Value', k <= 4, ...
+                'UserData', figKeys{k}, 'Position', [24 + col*420 205 - row*38 360 24]);
+        end
+        app.ExportFormatPngCheck = uicheckbox(figCard, 'Text', 'PNG 300 dpi', 'FontColor', c.text_light, ...
+            'Value', true, 'Position', [24 44 120 24]);
+        app.ExportFormatEpsCheck = uicheckbox(figCard, 'Text', 'EPS', 'FontColor', c.text_light, ...
+            'Value', true, 'Position', [155 44 70 24]);
+        app.ExportFormatSvgCheck = uicheckbox(figCard, 'Text', 'SVG', 'FontColor', c.text_light, ...
+            'Value', false, 'Position', [230 44 70 24]);
+        addSmallLabel(app, figCard, 'Size', [330 44 45 22]);
+        app.ExportSizeDropDown = uidropdown(figCard, 'Items', {'IEEE 2-col 180mm','IEEE 1-col 88mm','A4'}, ...
+            'Value', 'IEEE 2-col 180mm', 'Position', [375 42 160 28]);
+        addSmallLabel(app, figCard, 'Folder', [560 44 55 22]);
+        app.ExportFolderEdit = uieditfield(figCard, 'text', 'Editable', 'off', ...
+            'Position', [615 42 300 28]);
+        uibutton(figCard, 'push', 'Text', 'Browse...', 'Position', [930 42 80 28], ...
+            'ButtonPushedFcn', @(~, ~) onBrowseExportFolder(app));
+        uibutton(figCard, 'push', 'Text', 'Export Selected', 'FontWeight', 'bold', ...
+            'Position', [24 8 135 28], 'ButtonPushedFcn', @(~, ~) onExportSelectedFigures(app));
+        uibutton(figCard, 'push', 'Text', 'Export ALL Figures', ...
+            'Position', [175 8 145 28], 'ButtonPushedFcn', @(~, ~) onExportAllFigures(app));
+
+        csvCard = makeCard(app, p, 'CSV / Table Export', [24 270 1100 160]);
+        csvNames = {'PQ Summary','Scenario Matrix','Monthly Costs','Hosting Data','Sensitivity','Monte Carlo Stats'};
+        csvKeys = {'scenario_summary','scenario_summary','cost_summary','violations','sensitivity','monte_carlo'};
+        app.ExportCsvChecks = gobjects(numel(csvNames), 1);
+        for k = 1:numel(csvNames)
+            app.ExportCsvChecks(k) = uicheckbox(csvCard, 'Text', csvNames{k}, 'FontColor', c.text_light, ...
+                'Value', k <= 4, 'UserData', csvKeys{k}, 'Position', [24 + (k-1)*170 82 160 24]);
+        end
+        uibutton(csvCard, 'push', 'Text', 'Export Selected CSVs', 'FontWeight', 'bold', ...
+            'Position', [24 32 165 32], 'ButtonPushedFcn', @(~, ~) onExportSelectedCsv(app));
+        uibutton(csvCard, 'push', 'Text', 'Open Tables Folder', ...
+            'Position', [205 32 150 32], 'ButtonPushedFcn', @(~, ~) onOpenResultsFolder(app));
+
+        latexCard = makeCard(app, p, 'LaTeX Thesis Report', [24 95 1100 150]);
+        addSmallLabel(app, latexCard, 'Author', [24 82 65 22]);
+        app.ExportAuthorEdit = uieditfield(latexCard, 'text', 'Value', 'Mohammed Ahmed', ...
+            'Position', [90 82 220 28]);
+        addSmallLabel(app, latexCard, 'Date', [335 82 45 22]);
+        app.ExportDateEdit = uieditfield(latexCard, 'text', 'Value', datestr(now, 'yyyy-mm'), ...
+            'Position', [380 82 120 28]);
+        uibutton(latexCard, 'push', 'Text', 'Generate LaTeX .tex', 'FontWeight', 'bold', ...
+            'Position', [525 82 165 30], 'ButtonPushedFcn', @(~, ~) onGenerateLatexReport(app));
+        app.ExportLatexStatusText = uitextarea(latexCard, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
+            'FontSize', 10, 'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [24 15 1040 52], 'Value', {'Generate a LaTeX include file after exporting figures/tables.'});
+
+        statusCard = makeCard(app, p, 'Export Log', [24 24 1100 55]);
+        app.ExportStatusText = uitextarea(statusCard, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
+            'FontSize', 10, 'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [15 8 1070 25], 'Value', {'Export system ready.'});
+    end
+
     function createResultsPqDashboard(app, panel)
         % CREATERESULTSPQDASHBOARD Build KPI text, PQ plot, and bus voltage map.
         c = app.Theme.colors;
@@ -850,6 +933,7 @@ methods (Access = private)
         onPlotTariffs(app);
         onCalculateBlockBill(app);
         refreshResultsView(app);
+        refreshExportView(app);
     end
 
     function refreshDashboard(app)
@@ -1891,6 +1975,181 @@ methods (Access = private)
         end
     end
 
+    function refreshExportView(app)
+        % REFRESHEXPORTVIEW Update dynamic export folder and status.
+        try
+            if ~isempty(app.cfg) && isfield(app.cfg, 'output_dir')
+                app.ExportFolderEdit.Value = app.cfg.output_dir;
+            elseif ~isempty(app.ExportFolderEdit)
+                app.ExportFolderEdit.Value = fullfile(get_root_dir(), 'results');
+            end
+        catch
+        end
+    end
+
+    function onBrowseExportFolder(app)
+        % ONBROWSEEXPORTFOLDER Let the user choose the export root folder.
+        try
+            startDir = app.ExportFolderEdit.Value;
+            if isempty(startDir) || exist(startDir, 'dir') ~= 7
+                startDir = app.cfg.output_dir;
+            end
+            chosen = uigetdir(startDir, 'Choose EV DSM export folder');
+            if isequal(chosen, 0), return; end
+            app.ExportFolderEdit.Value = chosen;
+            app.cfg.output_dir = chosen;
+            app.cfg.figs_dir = fullfile(chosen, 'figures');
+            app.cfg.tables_dir = fullfile(chosen, 'tables');
+            ensureUiExportDirs(app);
+            log(app, sprintf('Export folder changed: %s', chosen));
+        catch ME
+            log(app, sprintf('Export folder browse failed: %s', ME.message));
+        end
+    end
+
+    function onExportSelectedFigures(app)
+        % ONEXPORTSELECTEDFIGURES Export checked figures in checked formats.
+        try
+            [results, ~, ~] = getUiResults(app);
+            if isempty(results)
+                app.ExportStatusText.Value = {'No scenario results found. Run scenarios first.'};
+                log(app, 'Figure export skipped: no results available.');
+                return;
+            end
+            opts = buildExportOptions(app);
+            opts.selected_figures = getSelectedExportFigures(app, false);
+            opts.formats = getSelectedExportFormats(app);
+            out = app_export_helper('figures_selected', results, app.cfg, opts);
+            app.SimState.last_export.figure_paths = out.figure_paths;
+            app.ExportStatusText.Value = exportPathLines('Exported figures', out.figure_paths);
+            log(app, sprintf('Exported %d figure files.', out.count));
+        catch ME
+            app.ExportStatusText.Value = {sprintf('Figure export failed: %s', ME.message)};
+            log(app, sprintf('Figure export failed: %s', ME.message));
+        end
+    end
+
+    function onExportAllFigures(app)
+        % ONEXPORTALLFIGURES Export all known thesis figures.
+        try
+            [results, ~, ~] = getUiResults(app);
+            if isempty(results)
+                app.ExportStatusText.Value = {'No scenario results found. Run scenarios first.'};
+                return;
+            end
+            opts = buildExportOptions(app);
+            opts.selected_figures = getSelectedExportFigures(app, true);
+            opts.formats = getSelectedExportFormats(app);
+            out = app_export_helper('figures_selected', results, app.cfg, opts);
+            app.SimState.last_export.figure_paths = out.figure_paths;
+            app.ExportStatusText.Value = exportPathLines('Exported all figures', out.figure_paths);
+            log(app, sprintf('Exported all figures: %d files.', out.count));
+        catch ME
+            app.ExportStatusText.Value = {sprintf('Export all figures failed: %s', ME.message)};
+            log(app, sprintf('Export all figures failed: %s', ME.message));
+        end
+    end
+
+    function onExportSelectedCsv(app)
+        % ONEXPORTSELECTEDCSV Export selected scenario CSV tables.
+        try
+            [results, ~, ~] = getUiResults(app);
+            if isempty(results)
+                app.ExportStatusText.Value = {'No scenario results found. Run scenarios first.'};
+                return;
+            end
+            opts = buildExportOptions(app);
+            opts.selected_tables = getSelectedExportTables(app);
+            out = app_export_helper('tables_selected', results, app.cfg, opts);
+            app.SimState.last_export.table_paths = out.table_paths;
+            app.ExportStatusText.Value = exportPathLines('Exported CSV tables', out.table_paths);
+            log(app, sprintf('Exported %d CSV table files.', out.count));
+        catch ME
+            app.ExportStatusText.Value = {sprintf('CSV export failed: %s', ME.message)};
+            log(app, sprintf('CSV export failed: %s', ME.message));
+        end
+    end
+
+    function onGenerateLatexReport(app)
+        % ONGENERATELATEXREPORT Generate LaTeX include file from latest exports.
+        try
+            exports = struct();
+            if isfield(app.SimState, 'last_export')
+                exports = app.SimState.last_export;
+            end
+            opts = buildExportOptions(app);
+            opts.name = 'thesis_results_report';
+            opts.author = app.ExportAuthorEdit.Value;
+            opts.report_date = app.ExportDateEdit.Value;
+            outFile = app_export_helper('latex_report', exports, app.cfg, opts);
+            app.ExportLatexStatusText.Value = {sprintf('Generated: %s', outFile), 'Compile with pdflatex after copying into the thesis folder.'};
+            log(app, sprintf('Generated LaTeX report: %s', outFile));
+        catch ME
+            app.ExportLatexStatusText.Value = {sprintf('LaTeX report failed: %s', ME.message)};
+            log(app, sprintf('LaTeX report failed: %s', ME.message));
+        end
+    end
+
+    function opts = buildExportOptions(app)
+        % BUILDEXPORTOPTIONS Collect export options from UI controls.
+        ensureUiExportDirs(app);
+        opts = struct();
+        opts.output_dir = app.ExportFolderEdit.Value;
+        opts.figures_dir = fullfile(opts.output_dir, 'figures');
+        opts.tables_dir = fullfile(opts.output_dir, 'tables');
+        opts.dpi = 300;
+        opts.size = app.ExportSizeDropDown.Value;
+    end
+
+    function ensureUiExportDirs(app)
+        % ENSUREUIEXPORTDIRS Ensure output/figures/tables directories exist.
+        if isempty(app.cfg) || ~isfield(app.cfg, 'output_dir')
+            app.cfg.output_dir = fullfile(get_root_dir(), 'results');
+        end
+        if isempty(app.ExportFolderEdit.Value)
+            app.ExportFolderEdit.Value = app.cfg.output_dir;
+        end
+        app.cfg.output_dir = app.ExportFolderEdit.Value;
+        app.cfg.figs_dir = fullfile(app.cfg.output_dir, 'figures');
+        app.cfg.tables_dir = fullfile(app.cfg.output_dir, 'tables');
+        dirs = {app.cfg.output_dir, app.cfg.figs_dir, app.cfg.tables_dir, ...
+            fullfile(app.cfg.figs_dir, 'png'), fullfile(app.cfg.figs_dir, 'eps'), fullfile(app.cfg.figs_dir, 'svg')};
+        for k = 1:numel(dirs)
+            if exist(dirs{k}, 'dir') ~= 7, mkdir(dirs{k}); end
+        end
+    end
+
+    function keys = getSelectedExportFigures(app, includeAll)
+        % GETSELECTEDEXPORTFIGURES Return checked/all figure export keys.
+        keys = {};
+        for k = 1:numel(app.ExportFigureChecks)
+            if includeAll || app.ExportFigureChecks(k).Value
+                keys{end+1} = app.ExportFigureChecks(k).UserData; %#ok<AGROW>
+            end
+        end
+        if isempty(keys), keys = {'vuf_comparison'}; end
+    end
+
+    function fmts = getSelectedExportFormats(app)
+        % GETSELECTEDEXPORTFORMATS Return checked figure formats.
+        fmts = {};
+        if app.ExportFormatPngCheck.Value, fmts{end+1} = 'png'; end %#ok<AGROW>
+        if app.ExportFormatEpsCheck.Value, fmts{end+1} = 'eps'; end %#ok<AGROW>
+        if app.ExportFormatSvgCheck.Value, fmts{end+1} = 'svg'; end %#ok<AGROW>
+        if isempty(fmts), fmts = {'png'}; end
+    end
+
+    function keys = getSelectedExportTables(app)
+        % GETSELECTEDEXPORTTABLES Return checked table export keys.
+        keys = {};
+        for k = 1:numel(app.ExportCsvChecks)
+            if app.ExportCsvChecks(k).Value
+                keys{end+1} = app.ExportCsvChecks(k).UserData; %#ok<AGROW>
+            end
+        end
+        if isempty(keys), keys = {'scenario_summary'}; end
+    end
+
     function switchView(app, viewId)
         % SWITCHVIEW Hide all content panels and show one selected panel.
         panels = {app.DashboardPanel, app.ConfigPanel, app.FeederPanel, ...
@@ -1916,6 +2175,8 @@ methods (Access = private)
         app.active_view = viewId;
         if viewId == 7
             refreshResultsView(app);
+        elseif viewId == 8
+            refreshExportView(app);
         end
         updateStatus(app, sprintf('View: %s', app.Theme.nav.labels{viewId}), 'info');
     end
@@ -2020,6 +2281,19 @@ methods (Access = private)
 end
 end
 
+
+function lines = exportPathLines(titleText, paths)
+% EXPORTPATHLINES Format export paths for UI text areas.
+if ischar(paths) || isstring(paths), paths = cellstr(paths); end
+lines = {sprintf('%s: %d file(s)', titleText, numel(paths))};
+maxShow = min(numel(paths), 8);
+for k = 1:maxShow
+    lines{end+1,1} = char(string(paths{k})); %#ok<AGROW>
+end
+if numel(paths) > maxShow
+    lines{end+1,1} = sprintf('... plus %d more file(s)', numel(paths) - maxShow); %#ok<AGROW>
+end
+end
 
 function label = shortScenarioLabel(description, fallback)
 % SHORTSCENARIOLABEL Compact label for result dropdown/table.
