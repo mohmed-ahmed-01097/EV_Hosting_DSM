@@ -16,6 +16,8 @@ Implemented status in this package:
 - [x] Phase 5 - Scenario Execution Layer
 - [x] Phase 6 - Visualization Layer
 - [x] Phase 7 - HouseholdTwin Class
+- [x] Phase 8 - Final validation test suite
+- [x] Phase 9 - Main runner and thesis table export
 
 ## Validate the implemented phases
 
@@ -46,6 +48,8 @@ This runs:
 - `test_phase5_scenarios`
 - `test_phase6_visualization`
 - `test_phase7_household_twin`
+- `test_phase8_tests_inventory`
+- `test_phase9_main_export`
 
 ## Run a smoke workflow
 
@@ -67,16 +71,12 @@ The smoke workflow loads config/survey/calendar/weather, builds the feeder, runs
 ## Run Phase 5 scenarios
 
 ```matlab
-main([], scenario, 4)
-main([], scenarios, [-1 1 4 6])
-main([], all_scenarios)
+main([], 'scenario', 4)
+main([], 'scenarios', [-1 1 4 6])
+main([], 'all_scenarios')
 ```
 
-Scenario outputs are saved to `results/scenario_results.mat`.
-
-## Next step
-
-Phase 8 - Complete test-suite hardening and end-to-end validation.
+Scenario outputs are saved to `results/scenario_results.mat`, and thesis-ready CSV tables are exported to `results/tables`.
 
 
 ## Phase 3 Implemented - Pricing Engine
@@ -280,4 +280,41 @@ Run validation with:
 
 ```matlab
 main([], 'validate')
+```
+
+
+## Finalized Phase 8 and Phase 9
+
+This package finalizes the full implementation plan. `main([], 'validate')` now runs the full validation suite through Phase 9. Scenario runs export both MATLAB and CSV outputs.
+
+Key files:
+
+```text
+src/io/verify_known_bug_fixes.m
+src/io/export_results_tables.m
+tests/test_phase8_tests_inventory.m
+tests/test_phase9_main_export.m
+docs/FINAL_DELIVERABLE_STATUS.md
+```
+
+Run full validation:
+
+```matlab
+main([], 'validate')
+```
+
+Run all scenarios and export thesis tables:
+
+```matlab
+main([], 'all_scenarios')
+```
+
+Exported tables:
+
+```text
+results/tables/scenario_summary.csv
+results/tables/scenario_cost_summary.csv
+results/tables/scenario_comfort_summary.csv
+results/tables/scenario_violations.csv
+results/tables/deliverables_checklist.csv
 ```

@@ -1,5 +1,5 @@
 function main(config_path, varargin)
-% MAIN Top-level runner for implemented Phase 0 through Phase 7 layers.
+% MAIN Top-level runner for implemented Phase 0 through Phase 9 layers.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -12,9 +12,10 @@ function main(config_path, varargin)
 %       'scenarios', [ids]      - run selected scenario IDs.
 %       'all_scenarios'         - run Baseline 0 and Scenarios 0..6.
 %       'plot'                  - generate Phase 6 figures after scenarios.
+%       'export'                - force CSV/table export after scenarios.
 %
 % Outputs:
-%   None. Scenario runs are saved to results/scenario_results.mat.
+%   None. Scenario runs are saved to results/scenario_results.mat and tables are exported to results/tables.
 %
 % Example:
 %   main([], 'validate')
@@ -112,6 +113,10 @@ if ~isempty(scenarioIds)
     outFile = fullfile(cfg.output_dir, 'scenario_results.mat');
     save(outFile, 'all_results', 'scenarioIds', '-v7.3');
     fprintf('[main] Phase 5 complete: scenario results saved to %s\n', outFile);
+
+    exportInfo = export_results_tables(all_results, cfg);
+    fprintf('[main] Phase 9 export complete: CSV tables exported to %s\n', exportInfo.tables_dir);
+
     if should_generate_plots(varargin) || numel(scenarioIds) >= 2
         plot_scenario_comparison(all_results, cfg);
         plot_pq_indices(all_results, cfg);
@@ -120,7 +125,10 @@ if ~isempty(scenarioIds)
         fprintf('[main] Phase 6 complete: visualization figures exported to %s\n', cfg.figs_dir);
     end
 else
+    verify_known_bug_fixes(cfg);
+    export_results_tables({}, cfg);
     fprintf('[main] Phase 5 scenario runners are implemented. Use main([], ''scenario'', 4) or main([], ''all_scenarios'') to execute them.\n');
+    fprintf('[main] Phase 8/9 finalization complete: validation wiring and empty checklist export are available.\n');
 end
 end
 
