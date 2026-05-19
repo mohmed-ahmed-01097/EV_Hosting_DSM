@@ -41,6 +41,7 @@ test_phase9_main_export();
 test_part_a_bug_fixes();
 test_part_b_step9_ui_structure();
 test_part_b_step10_app_skeleton();
+test_part_b_step11_core_views();
 
-fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables, Phase 10 PART A, PART B Step 9 UI scaffold, and PART B Step 10 app skeleton are valid.\n');
+fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables, Phase 10 PART A, PART B Step 9 UI scaffold, and PART B Step 10 app skeleton, and PART B Step 11 core UI views are valid.\n');
 end

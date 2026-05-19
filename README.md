@@ -404,3 +404,29 @@ Validation:
 ```matlab
 test_part_b_step10_app_skeleton()
 ```
+
+
+## Phase 10 PART B Step 11 — Core UI Views
+
+Implemented the first five detailed UI views inside `src/ui/EVHostingDSM_App.m`:
+
+- Dashboard
+- Configuration
+- Feeder Model
+- Load Model
+- Pricing
+
+Launch the app:
+
+```matlab
+run startup.m
+launch_app()
+```
+
+Validate Step 11 without opening the app:
+
+```matlab
+test_part_b_step11_core_views()
+```
+
+Scenarios, Results, Export, and Tests remain reserved for Steps 12–15.

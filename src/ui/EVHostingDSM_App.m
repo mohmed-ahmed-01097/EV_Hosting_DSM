@@ -1,5 +1,5 @@
 classdef EVHostingDSM_App < matlab.apps.AppBase
-% EVHOSTINGDSM_APP Dashboard-first MATLAB UI skeleton for EV Hosting DSM.
+% EVHOSTINGDSM_APP Dashboard-first MATLAB UI for EV Hosting DSM.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -14,9 +14,9 @@ classdef EVHostingDSM_App < matlab.apps.AppBase
 %   app = EVHostingDSM_App();
 %
 % Notes:
-%   PART B Step 10 implements the App Designer-compatible class skeleton.
-%   The detailed controls for each view are implemented in the following UI
-%   steps. This class is intentionally lightweight and compiled-app safe.
+%   PART B Step 11 implements the first five detailed views:
+%   Dashboard, Config, Feeder, Load, and Pricing. The remaining views are
+%   intentionally left as later-step placeholders.
 
 properties (Access = public)
     UIFigure
@@ -60,11 +60,55 @@ properties (Access = private)
     all_results_ready logical = false
     SimState struct = struct()
     Theme struct
+
+    DashboardSubtitleLabels
+    DashboardKpiLabels
+    DashboardFeederAxes
+
+    ConfigGroupList
+    ConfigEvPenSlider
+    ConfigEvPenValueLabel
+    ConfigChargerDropDown
+    ConfigSlowKwEdit
+    ConfigFastKwEdit
+    ConfigV2GCheckBox
+    ConfigV2GRevenueEdit
+    ConfigV2GReserveSlider
+    ConfigArrivalEdit
+    ConfigDepartureEdit
+    ConfigDsmControllerDropDown
+    ConfigLambdaEdit
+    ConfigComfortThresholdSlider
+    ConfigFlexTable
+    ConfigValidationText
+
+    FeederAxes
+    FeederAssignmentTable
+    FeederSmokePkwEdit
+    FeederSmokeQkvarEdit
+    FeederSmokeText
+
+    LoadHouseholdSpinner
+    LoadDayDropDown
+    LoadTempEdit
+    LoadInfoLabel
+    LoadAxes
+    OccupancyAxes
+    PopulationModeDropDown
+    PopulationProgressLabel
+    LiveLoadAxes
+
+    PricingAxes
+    PricingMethodChecks
+    PricingDayDropDown
+    BlockKwhEdit
+    BlockBillText
+    BlockSlabTable
 end
 
 methods (Access = public)
     function app = EVHostingDSM_App()
-        % EVHOSTINGDSM_APP Construct and initialize the app skeleton.
+        % EVHOSTINGDSM_APP Construct and initialize the app.
         app.Theme = app_theme();
         createComponents(app);
         registerApp(app, app.UIFigure);
@@ -86,7 +130,7 @@ end
 
 methods (Access = private)
     function createComponents(app)
-        % CREATECOMPONENTS Build dashboard-first skeleton layout.
+        % CREATECOMPONENTS Build dashboard-first layout.
         c = app.Theme.colors;
 
         app.UIFigure = uifigure('Visible', 'off');
@@ -146,7 +190,7 @@ methods (Access = private)
     end
 
     function createContentPanels(app)
-        % CREATECONTENTPANELS Build the nine content panels.
+        % CREATECONTENTPANELS Build all content panels.
         c = app.Theme.colors;
 
         app.ContentPanel = uipanel(app.RootGrid, ...
@@ -156,21 +200,25 @@ methods (Access = private)
         app.ContentPanel.Layout.Row = 1;
         app.ContentPanel.Layout.Column = 2;
 
-        app.DashboardPanel = uipanel(app.ContentPanel, 'Title', '', 'BorderType', 'none', 'BackgroundColor', c.bg_dark, 'Position', [0 0 1180 820]);
-        app.ConfigPanel    = makePlaceholderPanel(app, 'Configuration', 'Step 11 will add editable config groups and save/validate actions.');
-        app.FeederPanel    = makePlaceholderPanel(app, 'Feeder Model', 'Step 11 will add feeder topology, assignment table, and BFS smoke test.');
-        app.LoadPanel      = makePlaceholderPanel(app, 'Load Model', 'Step 11 will add household/profile simulation and live population plot.');
-        app.PricingPanel   = makePlaceholderPanel(app, 'Pricing', 'Step 11 will add tariff curves and block tariff calculator.');
-        app.ScenariosPanel = makePlaceholderPanel(app, 'Scenarios', 'Step 12 will add scenario cards and live execution log.');
+        app.DashboardPanel = makeBasePanel(app);
+        app.ConfigPanel    = makeBasePanel(app);
+        app.FeederPanel    = makeBasePanel(app);
+        app.LoadPanel      = makeBasePanel(app);
+        app.PricingPanel   = makeBasePanel(app);
+        app.ScenariosPanel = makePlaceholderPanel(app, 'Scenarios', 'Step 12 will add scenario cards and live execution.');
         app.ResultsPanel   = makePlaceholderPanel(app, 'Results', 'Step 13 will add PQ dashboard, comparison, hosting, cost, twin, and UQ sub-views.');
         app.ExportPanel    = makePlaceholderPanel(app, 'Export', 'Step 14 will add figure, CSV, and LaTeX export controls.');
         app.TestsPanel     = makePlaceholderPanel(app, 'Tests', 'Step 15 will add interactive test runner and result table.');
 
         createDashboardView(app);
+        createConfigView(app);
+        createFeederView(app);
+        createLoadView(app);
+        createPricingView(app);
     end
 
-    function panel = makePlaceholderPanel(app, titleText, bodyText)
-        % MAKEPLACEHOLDERPANEL Create a placeholder view panel.
+    function panel = makeBasePanel(app)
+        % MAKEBASEPANEL Create a standard invisible content panel.
         c = app.Theme.colors;
         panel = uipanel(app.ContentPanel, ...
             'Title', '', ...
@@ -178,6 +226,12 @@ methods (Access = private)
             'BackgroundColor', c.bg_dark, ...
             'Position', [0 0 1180 820], ...
             'Visible', 'off');
+    end
+
+    function panel = makePlaceholderPanel(app, titleText, bodyText)
+        % MAKEPLACEHOLDERPANEL Create a placeholder view panel.
+        c = app.Theme.colors;
+        panel = makeBasePanel(app);
 
         uilabel(panel, ...
             'Text', titleText, ...
@@ -201,22 +255,11 @@ methods (Access = private)
     end
 
     function createDashboardView(app)
-        % CREATEDASHBOARDVIEW Build the initial dashboard skeleton.
+        % CREATEDASHBOARDVIEW Build dashboard cards, actions, KPIs, and log.
         c = app.Theme.colors;
         p = app.DashboardPanel;
 
-        uilabel(p, ...
-            'Text', 'Dashboard', ...
-            'FontSize', 24, ...
-            'FontWeight', 'bold', ...
-            'FontColor', c.text_light, ...
-            'Position', [24 760 300 40]);
-
-        uilabel(p, ...
-            'Text', 'EV Hosting Capacity and Power Quality - AI-Driven DSM Simulator', ...
-            'FontSize', 13, ...
-            'FontColor', c.text_muted, ...
-            'Position', [24 735 600 26]);
+        addHeader(app, p, 'Dashboard', 'EV Hosting Capacity and Power Quality - AI-Driven DSM Simulator');
 
         cardW = 260;
         cardH = 115;
@@ -224,108 +267,268 @@ methods (Access = private)
         titles = {'CONFIG', 'SURVEY', 'WEATHER', 'POPULATION'};
         subtitles = {'Waiting...', 'Waiting...', 'Waiting...', 'Not simulated'};
         lamps = cell(1,4);
+        app.DashboardSubtitleLabels = gobjects(4,1);
 
         for k = 1:4
-            card = uipanel(p, ...
-                'Title', '', ...
-                'BackgroundColor', c.bg_panel, ...
-                'Position', [xs(k) 595 cardW cardH]);
-            lamps{k} = uilamp(card, ...
-                'Color', c.warning, ...
-                'Position', [18 68 20 20]);
-            uilabel(card, ...
-                'Text', titles{k}, ...
-                'FontSize', 13, ...
-                'FontWeight', 'bold', ...
-                'FontColor', c.text_light, ...
-                'Position', [50 65 180 26]);
-            uilabel(card, ...
-                'Text', subtitles{k}, ...
-                'Tag', [titles{k} '_SUBTITLE'], ...
-                'FontSize', 11, ...
-                'FontColor', c.text_muted, ...
-                'Position', [18 26 225 28]);
+            card = makeCard(app, p, '', [xs(k) 595 cardW cardH]);
+            lamps{k} = uilamp(card, 'Color', c.warning, 'Position', [18 68 20 20]);
+            uilabel(card, 'Text', titles{k}, 'FontSize', 13, 'FontWeight', 'bold', ...
+                'FontColor', c.text_light, 'Position', [50 65 180 26]);
+            app.DashboardSubtitleLabels(k) = uilabel(card, 'Text', subtitles{k}, ...
+                'FontSize', 11, 'FontColor', c.text_muted, 'Position', [18 26 225 30]);
         end
-
         app.ConfigLamp     = lamps{1};
         app.SurveyLamp     = lamps{2};
         app.WeatherLamp    = lamps{3};
         app.PopulationLamp = lamps{4};
 
-        feederCard = uipanel(p, ...
-            'Title', 'Feeder Mini-Map Preview', ...
-            'FontWeight', 'bold', ...
-            'ForegroundColor', c.text_light, ...
-            'BackgroundColor', c.bg_panel, ...
-            'Position', [24 290 540 260]);
-        ax = uiaxes(feederCard, 'Position', [20 20 500 205]);
-        app_feeder_plot(struct(), struct(), ax);
+        feederCard = makeCard(app, p, 'Feeder Mini-Map Preview', [24 330 540 230]);
+        app.DashboardFeederAxes = uiaxes(feederCard, 'Position', [20 20 500 170]);
+        app_feeder_plot(struct(), struct(), app.DashboardFeederAxes);
 
-        actions = uipanel(p, ...
-            'Title', 'Quick Actions', ...
-            'FontWeight', 'bold', ...
-            'ForegroundColor', c.text_light, ...
-            'BackgroundColor', c.bg_panel, ...
-            'Position', [584 290 540 260]);
+        actions = makeCard(app, p, 'Quick Actions', [584 330 540 230]);
+        uibutton(actions, 'push', 'Text', 'Run All Scenarios', 'FontWeight', 'bold', ...
+            'Position', [28 150 210 36], 'ButtonPushedFcn', @(~, ~) switchView(app, 6));
+        uibutton(actions, 'push', 'Text', 'Run Scenario 4', ...
+            'Position', [28 102 210 36], 'ButtonPushedFcn', @(~, ~) log(app, 'Scenario execution UI is implemented in Step 12.'));
+        uibutton(actions, 'push', 'Text', 'Run All Tests', ...
+            'Position', [28 54 210 36], 'ButtonPushedFcn', @(~, ~) onRunTests(app));
+        uibutton(actions, 'push', 'Text', 'Open Results Folder', ...
+            'Position', [270 54 210 36], 'ButtonPushedFcn', @(~, ~) onOpenResultsFolder(app));
 
-        uibutton(actions, 'push', ...
-            'Text', 'Run All Tests', ...
-            'FontWeight', 'bold', ...
-            'Position', [28 175 210 42], ...
-            'ButtonPushedFcn', @(~, ~) onRunTests(app));
-        uibutton(actions, 'push', ...
-            'Text', 'Open Results Folder', ...
-            'Position', [28 115 210 42], ...
-            'ButtonPushedFcn', @(~, ~) onOpenResultsFolder(app));
-        uibutton(actions, 'push', ...
-            'Text', 'Switch to Scenarios', ...
-            'Position', [28 55 210 42], ...
-            'ButtonPushedFcn', @(~, ~) switchView(app, 6));
+        kpiTitles = {'VUF', 'V_min', 'Hosting', 'Comfort', 'Last Scenario'};
+        app.DashboardKpiLabels = gobjects(5,1);
+        for k = 1:5
+            x = 24 + (k-1)*220;
+            tile = makeCard(app, p, '', [x 235 200 75]);
+            uilabel(tile, 'Text', kpiTitles{k}, 'FontWeight', 'bold', 'FontSize', 11, ...
+                'FontColor', c.text_light, 'Position', [14 42 160 22]);
+            app.DashboardKpiLabels(k) = uilabel(tile, 'Text', '--', 'FontSize', 14, ...
+                'FontWeight', 'bold', 'FontColor', c.accent, 'Position', [14 12 160 28]);
+        end
 
-        app.ExecutionLog = uitextarea(p, ...
-            'Editable', 'off', ...
-            'FontName', app.Theme.font.mono, ...
-            'FontSize', 10, ...
-            'FontColor', c.text_light, ...
-            'BackgroundColor', [0.07 0.07 0.12], ...
-            'Position', [24 24 1100 230], ...
-            'Value', {'> App log initialized.'});
+        app.ExecutionLog = uitextarea(p, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
+            'FontSize', 10, 'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [24 24 1100 190], 'Value', {'> App log initialized.'});
+    end
+
+    function createConfigView(app)
+        % CREATECONFIGVIEW Build editable core configuration controls.
+        c = app.Theme.colors;
+        p = app.ConfigPanel;
+        addHeader(app, p, 'Configuration', 'Edit high-impact simulation, EV, DSM, pricing, and HVAC parameters.');
+
+        left = makeCard(app, p, 'Groups', [24 95 300 635]);
+        app.ConfigGroupList = uilistbox(left, ...
+            'Items', {'Simulation','EV Parameters','PQ Limits','DSM Controller','Pricing','HVAC'}, ...
+            'Value', 'EV Parameters', ...
+            'Position', [16 385 260 200], ...
+            'ValueChangedFcn', @(~, ~) onConfigGroupChanged(app));
+        app.ConfigValidationText = uitextarea(left, 'Editable', 'off', ...
+            'FontName', app.Theme.font.mono, 'FontSize', 10, ...
+            'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [16 20 260 340], 'Value', {'Configuration validation messages appear here.'});
+
+        right = makeCard(app, p, 'Editable Parameters', [344 95 780 635]);
+        y = 555;
+        addSmallLabel(app, right, 'EV Penetration [%]', [24 y 170 22]);
+        app.ConfigEvPenSlider = uislider(right, 'Limits', [0 100], 'Value', 20, ...
+            'Position', [210 y+10 300 3], 'ValueChangedFcn', @(~, ~) onConfigSliderChanged(app));
+        app.ConfigEvPenValueLabel = uilabel(right, 'Text', '20%', 'FontColor', c.accent, 'FontWeight', 'bold', 'Position', [540 y 70 22]);
+
+        y = y - 48;
+        addSmallLabel(app, right, 'Charger Type', [24 y 170 22]);
+        app.ConfigChargerDropDown = uidropdown(right, 'Items', {'both','slow','fast','v2g'}, ...
+            'Value', 'both', 'Position', [210 y 160 28]);
+
+        addSmallLabel(app, right, 'V2G Enabled', [420 y 120 22]);
+        app.ConfigV2GCheckBox = uicheckbox(right, 'Text', '', 'Value', true, 'Position', [540 y 60 28]);
+
+        y = y - 48;
+        addSmallLabel(app, right, 'Slow Charger [kW]', [24 y 170 22]);
+        app.ConfigSlowKwEdit = uieditfield(right, 'numeric', 'Limits', [0.1 50], 'Value', 3.7, 'Position', [210 y 120 28]);
+        addSmallLabel(app, right, 'Fast Charger [kW]', [420 y 150 22]);
+        app.ConfigFastKwEdit = uieditfield(right, 'numeric', 'Limits', [0.1 100], 'Value', 7.4, 'Position', [570 y 120 28]);
+
+        y = y - 48;
+        addSmallLabel(app, right, 'V2G Revenue Fraction', [24 y 170 22]);
+        app.ConfigV2GRevenueEdit = uieditfield(right, 'numeric', 'Limits', [0 1], 'Value', 0.50, 'Position', [210 y 120 28]);
+        addSmallLabel(app, right, 'V2G Reserve SOC [%]', [420 y 160 22]);
+        app.ConfigV2GReserveSlider = uislider(right, 'Limits', [0 100], 'Value', 30, 'Position', [590 y+10 135 3]);
+
+        y = y - 48;
+        addSmallLabel(app, right, 'Arrival Mean [hr]', [24 y 170 22]);
+        app.ConfigArrivalEdit = uieditfield(right, 'numeric', 'Limits', [0 24], 'Value', 18, 'Position', [210 y 120 28]);
+        addSmallLabel(app, right, 'Departure Mean [hr]', [420 y 160 22]);
+        app.ConfigDepartureEdit = uieditfield(right, 'numeric', 'Limits', [0 24], 'Value', 7.5, 'Position', [590 y 120 28]);
+
+        y = y - 55;
+        addSmallLabel(app, right, 'DSM Controller', [24 y 170 22]);
+        app.ConfigDsmControllerDropDown = uidropdown(right, 'Items', {'none','rule_based','milp'}, ...
+            'Value', 'milp', 'Position', [210 y 150 28]);
+        addSmallLabel(app, right, 'Lambda Comfort', [420 y 150 22]);
+        app.ConfigLambdaEdit = uieditfield(right, 'numeric', 'Value', 0.001, 'Position', [590 y 120 28]);
+
+        y = y - 48;
+        addSmallLabel(app, right, 'Comfort CI Threshold', [24 y 170 22]);
+        app.ConfigComfortThresholdSlider = uislider(right, 'Limits', [0 1], 'Value', 0.30, 'Position', [210 y+10 300 3]);
+
+        addSmallLabel(app, right, 'Appliance Flexibility', [24 200 250 22]);
+        app.ConfigFlexTable = uitable(right, 'Position', [24 65 720 125], ...
+            'ColumnName', {'Appliance','Max Shift min','Comfort Weight','Controllable'}, ...
+            'ColumnEditable', [false true true true], 'Data', cell(0,4));
+
+        uibutton(right, 'push', 'Text', 'Save to cfg', 'FontWeight', 'bold', ...
+            'Position', [24 18 120 34], 'ButtonPushedFcn', @(~, ~) onSaveConfig(app));
+        uibutton(right, 'push', 'Text', 'Reset from cfg', ...
+            'Position', [160 18 130 34], 'ButtonPushedFcn', @(~, ~) refreshConfigView(app));
+        uibutton(right, 'push', 'Text', 'Validate', ...
+            'Position', [306 18 120 34], 'ButtonPushedFcn', @(~, ~) onValidateConfig(app));
+    end
+
+    function createFeederView(app)
+        % CREATEFEEDERVIEW Build feeder topology, assignment, and BFS test UI.
+        c = app.Theme.colors;
+        p = app.FeederPanel;
+        addHeader(app, p, 'Feeder Model', 'Three-phase unbalanced LV feeder topology, assignments, and BFS smoke test.');
+
+        topo = makeCard(app, p, 'Feeder Topology', [24 315 730 415]);
+        app.FeederAxes = uiaxes(topo, 'Position', [20 45 685 325]);
+        uibutton(topo, 'push', 'Text', 'Rebuild / Refresh', 'Position', [20 10 140 28], ...
+            'ButtonPushedFcn', @(~, ~) refreshFeederView(app));
+        uibutton(topo, 'push', 'Text', 'Pop Out', 'Position', [175 10 100 28], ...
+            'ButtonPushedFcn', @(~, ~) app_popout_plot('feeder_topo', struct('net', app.net, 'assignment', app.assignment), app.cfg));
+
+        assignCard = makeCard(app, p, 'Assignment Summary', [774 315 350 415]);
+        app.FeederAssignmentTable = uitable(assignCard, 'Position', [18 55 310 310], ...
+            'ColumnName', {'Zone','HH','EV','V2G','Phase A','Phase B','Phase C'}, 'Data', cell(0,7));
+        uibutton(assignCard, 'push', 'Text', 'Re-Assign', 'Position', [18 14 120 30], ...
+            'ButtonPushedFcn', @(~, ~) onReassignHouseholds(app));
+
+        smoke = makeCard(app, p, 'BFS Smoke Test', [24 95 1100 180]);
+        addSmallLabel(app, smoke, 'P per phase/bus [kW]', [24 105 170 22]);
+        app.FeederSmokePkwEdit = uieditfield(smoke, 'numeric', 'Value', 3.5, 'Limits', [0 500], 'Position', [190 105 80 28]);
+        addSmallLabel(app, smoke, 'Q per phase/bus [kVAr]', [300 105 180 22]);
+        app.FeederSmokeQkvarEdit = uieditfield(smoke, 'numeric', 'Value', 0.9, 'Limits', [0 500], 'Position', [480 105 80 28]);
+        uibutton(smoke, 'push', 'Text', 'Run BFS', 'FontWeight', 'bold', 'Position', [590 105 120 30], ...
+            'ButtonPushedFcn', @(~, ~) onRunBfsSmoke(app));
+        app.FeederSmokeText = uitextarea(smoke, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
+            'FontSize', 10, 'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [24 18 1040 70], 'Value', {'Run BFS to verify voltage, VUF, transformer loading, and losses.'});
+    end
+
+    function createLoadView(app)
+        % CREATELOADVIEW Build single-household and population load UI.
+        c = app.Theme.colors;
+        p = app.LoadPanel;
+        addHeader(app, p, 'Load Model', 'Behavior-driven household profile, occupancy, HVAC, EV, and population simulation preview.');
+
+        top = makeCard(app, p, 'Single Household', [24 505 1100 225]);
+        addSmallLabel(app, top, 'HH Index', [20 150 80 22]);
+        app.LoadHouseholdSpinner = uispinner(top, 'Limits', [1 100], 'Value', 1, 'Step', 1, 'Position', [100 150 80 28]);
+        addSmallLabel(app, top, 'Day', [210 150 50 22]);
+        app.LoadDayDropDown = uidropdown(top, 'Items', {'Summer Weekday','Summer Weekend','Winter Weekday','Winter Weekend','Ramadan Weekday'}, ...
+            'Value', 'Summer Weekday', 'Position', [260 150 160 28]);
+        addSmallLabel(app, top, 'Temperature [C]', [450 150 115 22]);
+        app.LoadTempEdit = uieditfield(top, 'numeric', 'Value', 42, 'Limits', [-10 60], 'Position', [570 150 80 28]);
+        uibutton(top, 'push', 'Text', 'Simulate Household', 'FontWeight', 'bold', 'Position', [680 150 150 30], ...
+            'ButtonPushedFcn', @(~, ~) onSimulateSingleHousehold(app));
+        uibutton(top, 'push', 'Text', 'Pop Out Load', 'Position', [850 150 120 30], ...
+            'ButtonPushedFcn', @(~, ~) onPopoutLastLoad(app));
+        app.LoadInfoLabel = uilabel(top, 'Text', 'Household information appears after simulation.', ...
+            'FontColor', c.text_light, 'Position', [20 105 1030 28]);
+        app.LoadAxes = uiaxes(top, 'Position', [20 10 500 90]);
+        app.OccupancyAxes = uiaxes(top, 'Position', [555 10 500 90]);
+
+        popCard = makeCard(app, p, 'Population Simulation', [24 95 1100 380]);
+        addSmallLabel(app, popCard, 'Mode', [20 310 60 22]);
+        app.PopulationModeDropDown = uidropdown(popCard, 'Items', {'Representative','Full Config Period'}, ...
+            'Value', 'Representative', 'Position', [80 310 165 28]);
+        uibutton(popCard, 'push', 'Text', 'Run Full Population', 'FontWeight', 'bold', 'Position', [270 310 150 30], ...
+            'ButtonPushedFcn', @(~, ~) onRunPopulation(app));
+        uibutton(popCard, 'push', 'Text', 'Reload Cache', 'Position', [440 310 120 30], ...
+            'ButtonPushedFcn', @(~, ~) onReloadPopulationCache(app));
+        app.PopulationProgressLabel = uilabel(popCard, 'Text', 'Progress: idle', 'FontColor', c.text_light, 'Position', [20 275 800 25]);
+        app.LiveLoadAxes = uiaxes(popCard, 'Position', [40 25 1000 235]);
+        title(app.LiveLoadAxes, 'Mean Load per Transformer Zone');
+    end
+
+    function createPricingView(app)
+        % CREATEPRICINGVIEW Build tariff curve and block calculator UI.
+        c = app.Theme.colors;
+        p = app.PricingPanel;
+        addHeader(app, p, 'Pricing', 'Plot the seven tariff architectures and calculate Egyptian block tariff bills.');
+
+        curve = makeCard(app, p, '24-hour Tariff Curves', [24 350 1100 380]);
+        methods = {'Block','Flat','TOU','RTP','Seasonal','CPP','RGDP'};
+        app.PricingMethodChecks = gobjects(numel(methods), 1);
+        for k = 1:numel(methods)
+            app.PricingMethodChecks(k) = uicheckbox(curve, 'Text', methods{k}, 'FontColor', c.text_light, ...
+                'Value', k <= 4, 'Position', [20 + (k-1)*110 320 100 24]);
+        end
+        addSmallLabel(app, curve, 'Day type', [820 320 70 22]);
+        app.PricingDayDropDown = uidropdown(curve, 'Items', {'Summer Weekday','Winter Weekday','Summer Weekend'}, ...
+            'Value', 'Summer Weekday', 'Position', [890 320 150 28]);
+        uibutton(curve, 'push', 'Text', 'Plot', 'FontWeight', 'bold', 'Position', [20 285 80 28], ...
+            'ButtonPushedFcn', @(~, ~) onPlotTariffs(app));
+        uibutton(curve, 'push', 'Text', 'Pop Out', 'Position', [115 285 90 28], ...
+            'ButtonPushedFcn', @(~, ~) app_popout_plot('pricing_curves', struct('cfg', app.cfg), app.cfg));
+        app.PricingAxes = uiaxes(curve, 'Position', [45 35 1000 235]);
+
+        block = makeCard(app, p, 'Block Tariff Bill Calculator', [24 95 1100 220]);
+        addSmallLabel(app, block, 'Monthly Consumption [kWh]', [24 150 180 22]);
+        app.BlockKwhEdit = uieditfield(block, 'numeric', 'Value', 110, 'Limits', [0 Inf], 'Position', [210 150 100 28]);
+        uibutton(block, 'push', 'Text', 'Calculate Bill', 'FontWeight', 'bold', 'Position', [330 150 130 30], ...
+            'ButtonPushedFcn', @(~, ~) onCalculateBlockBill(app));
+        app.BlockBillText = uilabel(block, 'Text', 'Total: -- EGP/month', 'FontSize', 14, 'FontWeight', 'bold', ...
+            'FontColor', c.accent, 'Position', [490 150 320 28]);
+        app.BlockSlabTable = uitable(block, 'Position', [24 18 1040 115], ...
+            'ColumnName', {'Slab','Energy kWh','Rate EGP/kWh','Charge EGP'}, 'Data', cell(0,4));
     end
 
     function createStatusBar(app)
         % CREATESTATUSBAR Build persistent bottom status area.
         c = app.Theme.colors;
 
-        app.StatusPanel = uipanel(app.RootGrid, ...
-            'Title', '', ...
-            'BorderType', 'none', ...
+        app.StatusPanel = uipanel(app.RootGrid, 'Title', '', 'BorderType', 'none', ...
             'BackgroundColor', [0.06 0.06 0.10]);
         app.StatusPanel.Layout.Row = 2;
         app.StatusPanel.Layout.Column = [1 2];
 
-        app.StatusBar = uilabel(app.StatusPanel, ...
-            'Text', 'Initializing...', ...
-            'FontSize', 10, ...
-            'FontColor', c.text_light, ...
-            'Position', [12 4 620 22]);
+        app.StatusBar = uilabel(app.StatusPanel, 'Text', 'Initializing...', 'FontSize', 10, ...
+            'FontColor', c.text_light, 'Position', [12 4 620 22]);
+        app.ProgressBar = uilabel(app.StatusPanel, 'Text', '[--------------------] 0%', ...
+            'FontName', app.Theme.font.mono, 'FontSize', 10, 'FontColor', c.accent, ...
+            'HorizontalAlignment', 'right', 'Position', [910 4 240 22]);
+        app.ProgressLabel = uilabel(app.StatusPanel, 'Text', 'Stage: startup', 'FontSize', 10, ...
+            'FontColor', c.text_muted, 'Position', [1160 4 220 22]);
+    end
 
-        app.ProgressBar = uilabel(app.StatusPanel, ...
-            'Text', '[--------------------] 0%', ...
-            'FontName', app.Theme.font.mono, ...
-            'FontSize', 10, ...
-            'FontColor', c.accent, ...
-            'HorizontalAlignment', 'right', ...
-            'Position', [910 4 240 22]);
+    function addHeader(app, parent, titleText, subtitleText)
+        % ADDHEADER Add standard title/subtitle labels.
+        c = app.Theme.colors;
+        uilabel(parent, 'Text', titleText, 'FontSize', 24, 'FontWeight', 'bold', ...
+            'FontColor', c.text_light, 'Position', [24 760 400 40]);
+        uilabel(parent, 'Text', subtitleText, 'FontSize', 13, 'FontColor', c.text_muted, ...
+            'Position', [24 735 850 26]);
+    end
 
-        app.ProgressLabel = uilabel(app.StatusPanel, ...
-            'Text', 'Stage: startup', ...
-            'FontSize', 10, ...
-            'FontColor', c.text_muted, ...
-            'Position', [1160 4 220 22]);
+    function panel = makeCard(app, parent, titleText, pos)
+        % MAKECARD Create a panel card with common styling.
+        c = app.Theme.colors;
+        panel = uipanel(parent, 'Title', titleText, 'FontWeight', 'bold', ...
+            'ForegroundColor', c.text_light, 'BackgroundColor', c.bg_panel, ...
+            'Position', pos);
+    end
+
+    function addSmallLabel(app, parent, txt, pos)
+        % ADDSMALLLABEL Add a compact white label.
+        c = app.Theme.colors;
+        uilabel(parent, 'Text', txt, 'FontSize', 11, 'FontColor', c.text_light, 'Position', pos);
     end
 
     function runStartup(app)
-        % RUNSTARTUP Load core project state with defensive error handling.
+        % RUNSTARTUP Load project state with defensive error handling.
         updateStatus(app, 'Initializing project...', 'warning');
         updateProgress(app, 5, 'loading paths');
 
@@ -354,6 +557,7 @@ methods (Access = private)
             app.assignment = assign_households(app.cfg, app.data, app.net);
             log(app, sprintf('Feeder ready: %d buses, %d branches', app.net.n_buses, app.net.n_branches));
 
+            refreshAllImplementedViews(app);
             updateProgress(app, 100, 'ready');
             app.is_initialized = true;
             updateStatus(app, 'Ready', 'success');
@@ -365,6 +569,346 @@ methods (Access = private)
         end
     end
 
+    function refreshAllImplementedViews(app)
+        % REFRESHALLIMPLEMENTEDVIEWS Update data-dependent UI controls.
+        refreshDashboard(app);
+        refreshConfigView(app);
+        refreshFeederView(app);
+        onPlotTariffs(app);
+        onCalculateBlockBill(app);
+    end
+
+    function refreshDashboard(app)
+        % REFRESHDASHBOARD Update status cards and KPIs.
+        if isempty(app.cfg)
+            return;
+        end
+        try
+            app.DashboardSubtitleLabels(1).Text = sprintf('%s, %s | dt=%d min', app.cfg.location.city, app.cfg.location.country, app.cfg.simulation.dt_min);
+            app.DashboardSubtitleLabels(2).Text = sprintf('%d households | %d activities', height(app.data.household), height(app.data.activities));
+            app.DashboardSubtitleLabels(3).Text = sprintf('%s | %.1f..%.1f C', app.weather.meta.source, min(app.weather.temp_C), max(app.weather.temp_C));
+            if isempty(app.pop)
+                app.DashboardSubtitleLabels(4).Text = 'Not simulated';
+            else
+                app.DashboardSubtitleLabels(4).Text = sprintf('Cached | %d x %d matrix', size(app.pop.L_house_w,1), size(app.pop.L_house_w,2));
+            end
+            app.DashboardKpiLabels(1).Text = '--';
+            app.DashboardKpiLabels(2).Text = '--';
+            app.DashboardKpiLabels(3).Text = sprintf('%.0f%% target', 100 * app.cfg.ev.penetration_rate);
+            app.DashboardKpiLabels(4).Text = sprintf('CI >= %.2f', app.cfg.dsm.comfort_ci_threshold);
+            app.DashboardKpiLabels(5).Text = 'None yet';
+            app_feeder_plot(app.net, app.assignment, app.DashboardFeederAxes);
+        catch ME
+            log(app, sprintf('Dashboard refresh warning: %s', ME.message));
+        end
+    end
+
+    function refreshConfigView(app)
+        % REFRESHCONFIGVIEW Populate config controls from cfg.
+        if isempty(app.cfg)
+            return;
+        end
+        try
+            app.ConfigEvPenSlider.Value = 100 * app.cfg.ev.penetration_rate;
+            app.ConfigEvPenValueLabel.Text = sprintf('%.0f%%', 100 * app.cfg.ev.penetration_rate);
+            app.ConfigChargerDropDown.Value = char(string(app.cfg.ev.charger_type));
+            app.ConfigSlowKwEdit.Value = app.cfg.ev.slow_kw;
+            app.ConfigFastKwEdit.Value = app.cfg.ev.fast_kw;
+            app.ConfigV2GCheckBox.Value = logical(app.cfg.ev.v2g_enabled);
+            app.ConfigV2GRevenueEdit.Value = app.cfg.ev.v2g_revenue_fraction;
+            app.ConfigV2GReserveSlider.Value = app.cfg.ev.soc_v2g_reserve_pct;
+            app.ConfigArrivalEdit.Value = app.cfg.ev.arrival_mean_hour;
+            app.ConfigDepartureEdit.Value = app.cfg.ev.departure_mean_hour;
+            app.ConfigDsmControllerDropDown.Value = char(string(app.cfg.dsm.controller));
+            app.ConfigLambdaEdit.Value = app.cfg.dsm.lambda_comfort;
+            app.ConfigComfortThresholdSlider.Value = app.cfg.dsm.comfort_ci_threshold;
+            app.ConfigFlexTable.Data = buildFlexibilityTable(app.cfg);
+            app.ConfigValidationText.Value = {'Config loaded into UI controls.'};
+        catch ME
+            app.ConfigValidationText.Value = {sprintf('Config refresh error: %s', ME.message)};
+        end
+    end
+
+    function onConfigGroupChanged(app)
+        % ONCONFIGGROUPCHANGED Log current group selection.
+        log(app, sprintf('Config group selected: %s', app.ConfigGroupList.Value));
+    end
+
+    function onConfigSliderChanged(app)
+        % ONCONFIGSLIDERCHANGED Update visible slider label.
+        app.ConfigEvPenValueLabel.Text = sprintf('%.0f%%', app.ConfigEvPenSlider.Value);
+    end
+
+    function onSaveConfig(app)
+        % ONSAVECONFIG Apply UI values into app.cfg.
+        try
+            app.cfg.ev.penetration_rate = app.ConfigEvPenSlider.Value / 100;
+            app.cfg.ev.charger_type = app.ConfigChargerDropDown.Value;
+            app.cfg.ev.slow_kw = app.ConfigSlowKwEdit.Value;
+            app.cfg.ev.fast_kw = app.ConfigFastKwEdit.Value;
+            app.cfg.ev.v2g_enabled = logical(app.ConfigV2GCheckBox.Value);
+            app.cfg.ev.v2g_revenue_fraction = app.ConfigV2GRevenueEdit.Value;
+            app.cfg.ev.soc_v2g_reserve_pct = app.ConfigV2GReserveSlider.Value;
+            app.cfg.ev.v2g_reserve_soc_pct = app.ConfigV2GReserveSlider.Value;
+            app.cfg.ev.arrival_mean_hour = app.ConfigArrivalEdit.Value;
+            app.cfg.ev.departure_mean_hour = app.ConfigDepartureEdit.Value;
+            app.cfg.dsm.controller = app.ConfigDsmControllerDropDown.Value;
+            app.cfg.dsm.lambda_comfort = app.ConfigLambdaEdit.Value;
+            app.cfg.dsm.comfort_ci_threshold = app.ConfigComfortThresholdSlider.Value;
+            app.cfg = applyFlexibilityTable(app.cfg, app.ConfigFlexTable.Data);
+            app.ConfigValidationText.Value = {'Saved UI values to in-memory cfg.', 'Use Export/Config save in later UI steps for file persistence.'};
+            log(app, 'Configuration values saved to app.cfg.');
+            refreshDashboard(app);
+        catch ME
+            app.ConfigValidationText.Value = {sprintf('Save failed: %s', ME.message)};
+            log(app, sprintf('Config save failed: %s', ME.message));
+        end
+    end
+
+    function onValidateConfig(app)
+        % ONVALIDATECONFIG Run lightweight config validation.
+        msgs = {};
+        try
+            if app.ConfigEvPenSlider.Value < 0 || app.ConfigEvPenSlider.Value > 100
+                error('EV penetration must be in [0,100]%%.');
+            end
+            if app.ConfigSlowKwEdit.Value <= 0 || app.ConfigFastKwEdit.Value <= 0
+                error('Charger powers must be positive.');
+            end
+            if app.ConfigComfortThresholdSlider.Value < 0 || app.ConfigComfortThresholdSlider.Value > 1
+                error('Comfort threshold must be in [0,1].');
+            end
+            msgs{end+1} = 'PASS: UI config values are valid.'; %#ok<AGROW>
+            msgs{end+1} = sprintf('EV penetration = %.1f%%', app.ConfigEvPenSlider.Value); %#ok<AGROW>
+            msgs{end+1} = sprintf('Comfort threshold = %.2f', app.ConfigComfortThresholdSlider.Value); %#ok<AGROW>
+            app.ConfigValidationText.Value = msgs;
+            log(app, 'Configuration validation passed.');
+        catch ME
+            app.ConfigValidationText.Value = {sprintf('FAIL: %s', ME.message)};
+            log(app, sprintf('Configuration validation failed: %s', ME.message));
+        end
+    end
+
+    function refreshFeederView(app)
+        % REFRESHFEEDERVIEW Redraw topology and assignment table.
+        if isempty(app.net)
+            return;
+        end
+        try
+            app_feeder_plot(app.net, app.assignment, app.FeederAxes);
+            app.FeederAssignmentTable.Data = buildAssignmentSummary(app.assignment, app.net);
+            log(app, 'Feeder view refreshed.');
+        catch ME
+            log(app, sprintf('Feeder refresh failed: %s', ME.message));
+        end
+    end
+
+    function onReassignHouseholds(app)
+        % ONREASSIGNHOUSEHOLDS Regenerate assignment with current cfg.
+        try
+            app.assignment = assign_households(app.cfg, app.data, app.net);
+            refreshFeederView(app);
+            refreshDashboard(app);
+            log(app, 'Households reassigned across zones/phases.');
+        catch ME
+            log(app, sprintf('Re-assignment failed: %s', ME.message));
+        end
+    end
+
+    function onRunBfsSmoke(app)
+        % ONRUNBFSSMOKE Run balanced BFS smoke test from UI values.
+        try
+            pVa = app.FeederSmokePkwEdit.Value * 1000;
+            qVar = app.FeederSmokeQkvarEdit.Value * 1000;
+            S_load = (pVa + 1j*qVar) * ones(3, app.net.n_buses);
+            [V_bus, I_branch, I_neutral, ok] = bfs_power_flow(app.net, S_load, app.assignment);
+            pq = compute_pq_indices(V_bus, I_branch, I_neutral, S_load, app.net, app.cfg);
+            msg = {
+                sprintf('Converged: %d', ok)
+                sprintf('V_min: %.4f pu', pq.V_min_pu)
+                sprintf('Max VUF: %.4f %%', max(pq.VUF_pct))
+                sprintf('Max TL: %.2f %%', max(pq.TL_pct))
+                sprintf('Losses: %.3f kW / %.3f kvar', pq.Ploss_kW, pq.Qloss_kvar)
+            };
+            app.FeederSmokeText.Value = msg;
+            log(app, sprintf('BFS smoke test complete: Vmin=%.4f pu, VUF=%.3f%%', pq.V_min_pu, max(pq.VUF_pct)));
+        catch ME
+            app.FeederSmokeText.Value = {sprintf('BFS smoke test failed: %s', ME.message)};
+            log(app, sprintf('BFS smoke test failed: %s', ME.message));
+        end
+    end
+
+    function onSimulateSingleHousehold(app)
+        % ONSIMULATESINGLEHOUSEHOLD Generate and plot one 24-hour profile.
+        try
+            h = round(app.LoadHouseholdSpinner.Value);
+            steps = 24 * 60 / app.cfg.simulation.dt_min;
+            cal_day = buildUiCalDay(app.LoadDayDropDown.Value);
+            weather_day = app.LoadTempEdit.Value * ones(steps, 1);
+            hh = simulate_household(h, app.assignment, app.data, weather_day, cal_day, app.cfg);
+            app.SimState.last_household = hh;
+            app_load_profile_plot(hh, app.cfg, app.LoadAxes);
+            plotOccupancy(app, hh.occupancy, app.OccupancyAxes);
+            evText = 'No EV';
+            if isfield(hh, 'ev') && isfield(hh.ev, 'present') && hh.ev.present
+                evText = sprintf('EV %s %.0fkWh | SOC %.0f%% -> %.0f%%', hh.ev.charger_type, hh.ev.battery_kwh, 100*hh.ev.soc_initial, 100*hh.ev.soc_target);
+            end
+            dailyKwh = sum(hh.p_total_w) * app.cfg.simulation.dt_hr / 1000;
+            app.LoadInfoLabel.Text = sprintf('HH %d | Zone T%d | Phase %d | %.2f kWh/day | %s', h, hh.zone, hh.phase_id, dailyKwh, evText);
+            log(app, sprintf('Simulated household %d: %.2f kWh/day.', h, dailyKwh));
+        catch ME
+            app.LoadInfoLabel.Text = sprintf('Simulation failed: %s', ME.message);
+            log(app, sprintf('Household simulation failed: %s', ME.message));
+        end
+    end
+
+    function plotOccupancy(app, occ, ax)
+        % PLOTOCCUPANCY Plot occupancy state as a one-row heatmap.
+        cla(ax);
+        if isempty(occ)
+            title(ax, 'Occupancy unavailable');
+            return;
+        end
+        hours = (0:numel(occ)-1) * app.cfg.simulation.dt_min / 60;
+        imagesc(ax, hours, 1, double(occ(:))');
+        colormap(ax, parula(3));
+        xlabel(ax, 'Hour');
+        yticks(ax, 1);
+        yticklabels(ax, {'State'});
+        title(ax, 'Occupancy: 0 Away, 1 Awake, 2 Asleep');
+        xlim(ax, [0 24]);
+    end
+
+    function onPopoutLastLoad(app)
+        % ONPOPOUTLASTLOAD Show last single-household profile in figure.
+        if isfield(app.SimState, 'last_household')
+            app_popout_plot('load_profile', app.SimState.last_household, app.cfg);
+        else
+            log(app, 'Simulate a household before using Pop Out Load.');
+        end
+    end
+
+    function onRunPopulation(app)
+        % ONRUNPOPULATION Run population simulation with live progress.
+        try
+            cb = @(pct, msg) populationProgressCallback(app, pct, msg);
+            app.pop = simulate_population(app.cfg, app.data, app.assignment, app.net, app.cal_struct, app.weather, cb);
+            setLamp(app, 'population', true);
+            refreshDashboard(app);
+            updateLiveLoadAxes(app);
+            log(app, 'Population simulation completed.');
+        catch ME
+            log(app, sprintf('Population simulation failed: %s', ME.message));
+            app.PopulationProgressLabel.Text = sprintf('Progress: failed - %s', ME.message);
+        end
+    end
+
+    function populationProgressCallback(app, pct, msg)
+        % POPULATIONPROGRESSCALLBACK Update UI while simulate_population runs.
+        app.PopulationProgressLabel.Text = sprintf('Progress: %d%% | %s', pct, msg);
+        updateProgress(app, pct, msg);
+        if mod(pct, 5) == 0
+            updateLiveLoadAxes(app);
+        end
+        drawnow('limitrate');
+    end
+
+    function onReloadPopulationCache(app)
+        % ONRELOADPOPULATIONCACHE Load cached population profile if available.
+        try
+            cacheFile = fullfile(app.cfg.output_dir, 'population_profiles.mat');
+            if isfile(cacheFile)
+                S = load(cacheFile, 'pop');
+                app.pop = S.pop;
+                setLamp(app, 'population', true);
+                updateLiveLoadAxes(app);
+                refreshDashboard(app);
+                log(app, sprintf('Population cache loaded: %s', cacheFile));
+            else
+                log(app, sprintf('Population cache not found: %s', cacheFile));
+            end
+        catch ME
+            log(app, sprintf('Population cache reload failed: %s', ME.message));
+        end
+    end
+
+    function updateLiveLoadAxes(app)
+        % UPDATELIVELOADAXES Plot mean load per transformer zone when pop exists.
+        cla(app.LiveLoadAxes);
+        if isempty(app.pop) || ~isfield(app.pop, 'L_house_w')
+            bar(app.LiveLoadAxes, 1:5, zeros(1,5));
+            title(app.LiveLoadAxes, 'Mean Load per Transformer Zone - no population cache');
+            xlabel(app.LiveLoadAxes, 'Zone');
+            ylabel(app.LiveLoadAxes, 'Mean Load [W]');
+            return;
+        end
+        zoneMeans = zeros(1, app.cfg.feeder.num_transformer_zones);
+        for z = 1:numel(zoneMeans)
+            idx = find(app.assignment.zone == z);
+            if ~isempty(idx)
+                zoneMeans(z) = mean(app.pop.L_house_w(:, idx), 'all', 'omitnan');
+            end
+        end
+        bar(app.LiveLoadAxes, 1:numel(zoneMeans), zoneMeans);
+        grid(app.LiveLoadAxes, 'on');
+        xlabel(app.LiveLoadAxes, 'Transformer Zone');
+        ylabel(app.LiveLoadAxes, 'Mean Load [W]');
+        title(app.LiveLoadAxes, 'Mean Load per Transformer Zone');
+    end
+
+    function onPlotTariffs(app)
+        % ONPLOTTARIFFS Plot selected tariff curves.
+        if isempty(app.cfg)
+            return;
+        end
+        methods = {'Block','Flat','TOU','RTP','Seasonal','CPP','RGDP'};
+        tvec = (0:(24*60/app.cfg.simulation.dt_min)-1)' * app.cfg.simulation.dt_min;
+        hours = tvec / 60;
+        cla(app.PricingAxes);
+        hold(app.PricingAxes, 'on');
+        plotted = false;
+        for k = 1:numel(methods)
+            if app.PricingMethodChecks(k).Value
+                p = select_pricing(methods{k}, app.cfg, tvec, 250, []);
+                if isstruct(p) && isfield(p, 'price_series')
+                    y = p.price_series;
+                else
+                    y = p(:);
+                end
+                plot(app.PricingAxes, hours, y, 'LineWidth', 1.5, 'DisplayName', methods{k});
+                plotted = true;
+            end
+        end
+        if ~plotted
+            title(app.PricingAxes, 'Select at least one tariff.');
+        else
+            grid(app.PricingAxes, 'on');
+            xlabel(app.PricingAxes, 'Hour');
+            ylabel(app.PricingAxes, 'EGP/kWh');
+            title(app.PricingAxes, sprintf('24-hour Tariff Curves - %s', app.PricingDayDropDown.Value));
+            legend(app.PricingAxes, 'Location', 'best');
+            xlim(app.PricingAxes, [0 24]);
+        end
+        hold(app.PricingAxes, 'off');
+    end
+
+    function onCalculateBlockBill(app)
+        % ONCALCULATEBLOCKBILL Calculate Egyptian block tariff bill and slab table.
+        if isempty(app.cfg)
+            return;
+        end
+        try
+            kwh = app.BlockKwhEdit.Value;
+            b = pricing_block(app.cfg, (0:95)'*15, kwh, 30);
+            app.BlockBillText.Text = sprintf('Total: %.2f EGP/month | Slab %d | Effective %.3f EGP/kWh', b.bill_egp, b.slab_reached, b.effective_rate_egp_kwh);
+            app.BlockSlabTable.Data = buildBlockSlabRows(app.cfg, kwh);
+            log(app, sprintf('Block bill calculated: %.1f kWh -> %.2f EGP.', kwh, b.bill_egp));
+        catch ME
+            app.BlockBillText.Text = sprintf('Calculation failed: %s', ME.message);
+            log(app, sprintf('Block tariff calculation failed: %s', ME.message));
+        end
+    end
+
     function switchView(app, viewId)
         % SWITCHVIEW Hide all content panels and show one selected panel.
         panels = {app.DashboardPanel, app.ConfigPanel, app.FeederPanel, ...
@@ -372,7 +916,6 @@ methods (Access = private)
             app.ResultsPanel, app.ExportPanel, app.TestsPanel};
 
         for k = 1:numel(panels)
-            
             if k == viewId
                 panels{k}.Visible = 'on';
             else
@@ -427,7 +970,6 @@ methods (Access = private)
         try
             scroll(app.ExecutionLog, 'bottom');
         catch
-            % scroll is not available in every release; safe to ignore.
         end
         drawnow('limitrate');
     end
@@ -490,5 +1032,96 @@ methods (Access = private)
             log(app, sprintf('Could not open folder automatically: %s', ME.message));
         end
     end
+end
+end
+
+function rows = buildFlexibilityTable(cfg)
+% BUILDFLEXIBILITYTABLE Convert DSM comfort maps into table rows.
+apps = fieldnames(cfg.dsm.comfort_max_shift_min);
+rows = cell(numel(apps), 4);
+for k = 1:numel(apps)
+    appName = apps{k};
+    rows{k,1} = appName;
+    rows{k,2} = cfg.dsm.comfort_max_shift_min.(appName);
+    if isfield(cfg.dsm.comfort_weights, appName)
+        rows{k,3} = cfg.dsm.comfort_weights.(appName);
+    else
+        rows{k,3} = 1.0;
+    end
+    rows{k,4} = true;
+end
+end
+
+function cfg = applyFlexibilityTable(cfg, rows)
+% APPLYFLEXIBILITYTABLE Apply edited flexibility table to cfg.
+for k = 1:size(rows,1)
+    name = matlab.lang.makeValidName(char(string(rows{k,1})));
+    cfg.dsm.comfort_max_shift_min.(name) = rows{k,2};
+    cfg.dsm.comfort_weights.(name) = rows{k,3};
+end
+end
+
+function rows = buildAssignmentSummary(assignment, net)
+% BUILDASSIGNMENTSUMMARY Summarize households/EVs/phases per zone.
+Z = net.n_transformers;
+rows = cell(Z+1, 7);
+for z = 1:Z
+    idx = find(assignment.zone == z);
+    rows{z,1} = sprintf('T%d', z);
+    rows{z,2} = numel(idx);
+    rows{z,3} = sum(assignment.has_ev(idx));
+    rows{z,4} = sum(assignment.has_ev(idx) & strcmpi(assignment.charger_type(idx), 'v2g'));
+    rows{z,5} = sum(assignment.phase_id(idx) == 1);
+    rows{z,6} = sum(assignment.phase_id(idx) == 2);
+    rows{z,7} = sum(assignment.phase_id(idx) == 3);
+end
+rows{Z+1,1} = 'Total';
+rows{Z+1,2} = numel(assignment.zone);
+rows{Z+1,3} = sum(assignment.has_ev);
+rows{Z+1,4} = sum(assignment.has_ev & strcmpi(assignment.charger_type(:), 'v2g'));
+rows{Z+1,5} = sum(assignment.phase_id == 1);
+rows{Z+1,6} = sum(assignment.phase_id == 2);
+rows{Z+1,7} = sum(assignment.phase_id == 3);
+end
+
+function cal_day = buildUiCalDay(dayText)
+% BUILDUICALDAY Convert UI day selection into cal_day struct.
+cal_day.daytype = uint8(0);
+cal_day.is_ramadan = false;
+cal_day.season = categorical({'summer'});
+if contains(dayText, 'Weekend', 'IgnoreCase', true)
+    cal_day.daytype = uint8(1);
+end
+if contains(dayText, 'Winter', 'IgnoreCase', true)
+    cal_day.season = categorical({'winter'});
+end
+if contains(dayText, 'Ramadan', 'IgnoreCase', true)
+    cal_day.is_ramadan = true;
+end
+end
+
+function rows = buildBlockSlabRows(cfg, kwh)
+% BUILDBLOCKSLABROWS Build block tariff row breakdown.
+slabs = cfg.pricing.block_slabs_kwh(:)';
+rates = cfg.pricing.block_rates_egp(:)';
+remaining = kwh;
+prevUpper = 0;
+rows = cell(numel(rates), 4);
+for k = 1:numel(rates)
+    if k <= numel(slabs)
+        upper = slabs(k);
+        slabName = sprintf('%g-%g', prevUpper, upper);
+    else
+        upper = Inf;
+        slabName = sprintf('>%g', prevUpper);
+    end
+    width = min(max(remaining, 0), upper - prevUpper);
+    charge = width * rates(k);
+    rows{k,1} = slabName;
+    rows{k,2} = width;
+    rows{k,3} = rates(k);
+    rows{k,4} = charge;
+    remaining = remaining - width;
+    prevUpper = upper;
 end
 end
