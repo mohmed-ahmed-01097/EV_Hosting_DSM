@@ -447,3 +447,14 @@ Launch the app:
 ```matlab
 launch_app()
 ```
+
+
+## Phase 10 PART B Step 13 — Results View
+
+The MATLAB UI now includes the Results view with six sub-views: PQ Dashboard, Scenario Comparison, Hosting Capacity, Cost Analysis, Digital Twin Inspector, and UQ preview. The view is lean-result compatible and reads `pq_summary`, `costs`, `comfort_summary`, `hosting_capacity_pct`, and retained `L_feeder_w` only.
+
+Validate Step 13:
+
+```matlab
+test_part_b_step13_results_view()
+```

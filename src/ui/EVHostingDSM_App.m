@@ -14,9 +14,9 @@ classdef EVHostingDSM_App < matlab.apps.AppBase
 %   app = EVHostingDSM_App();
 %
 % Notes:
-%   PART B Step 12 implements the first six detailed views:
-%   Dashboard, Config, Feeder, Load, Pricing, and Scenarios. The remaining
-%   Results, Export, and Tests views are intentionally left for later steps.
+%   PART B Step 13 implements Dashboard, Config, Feeder, Load, Pricing,
+%   Scenarios, and Results. Export and Tests views are intentionally left
+%   for later steps.
 
 properties (Access = public)
     UIFigure
@@ -113,6 +113,33 @@ properties (Access = private)
     ScenarioProgressText
     ScenarioLiveAxes
     ScenarioLog
+
+    ResultsSubButtons
+    ResultsSubPanels
+    ResultsPqScenarioDropDown
+    ResultsPqTextArea
+    ResultsPqAxes
+    ResultsVoltageAxes
+    ResultsCompareAxes
+    ResultsCompareMetricDropDown
+    ResultsCompareTable
+    ResultsHostingAxes
+    ResultsHostingTable
+    ResultsCostAxes
+    ResultsCostTariffDropDown
+    ResultsCostTable
+    ResultsTwinHouseholdSpinner
+    ResultsTwinDayDropDown
+    ResultsTwinAxes
+    ResultsTwinFlexTable
+    ResultsTwinCommandApplianceDropDown
+    ResultsTwinCommandStartEdit
+    ResultsTwinStatusText
+    ResultsUqAxes
+    ResultsUqScenarioDropDown
+    ResultsUqRunsSpinner
+    ResultsUqTable
+
     ScenarioStopRequested logical = false
 end
 
@@ -216,7 +243,7 @@ methods (Access = private)
         app.LoadPanel      = makeBasePanel(app);
         app.PricingPanel   = makeBasePanel(app);
         app.ScenariosPanel = makeBasePanel(app);
-        app.ResultsPanel   = makePlaceholderPanel(app, 'Results', 'Step 13 will add PQ dashboard, comparison, hosting, cost, twin, and UQ sub-views.');
+        app.ResultsPanel   = makeBasePanel(app);
         app.ExportPanel    = makePlaceholderPanel(app, 'Export', 'Step 14 will add figure, CSV, and LaTeX export controls.');
         app.TestsPanel     = makePlaceholderPanel(app, 'Tests', 'Step 15 will add interactive test runner and result table.');
 
@@ -226,6 +253,7 @@ methods (Access = private)
         createLoadView(app);
         createPricingView(app);
         createScenariosView(app);
+        createResultsView(app);
     end
 
     function panel = makeBasePanel(app)
@@ -558,6 +586,179 @@ methods (Access = private)
             'ButtonPushedFcn', @(~, ~) onOpenResultsFolder(app));
     end
 
+
+    function createResultsView(app)
+        % CREATERESULTSVIEW Build Step 13 Results view and six sub-views.
+        c = app.Theme.colors;
+        p = app.ResultsPanel;
+        addHeader(app, p, 'Results', 'PQ dashboard, scenario comparison, hosting capacity, cost analysis, twin inspector, and uncertainty analysis.');
+
+        names = {'PQ Dashboard','Comparison','Hosting','Cost','Twin','UQ'};
+        app.ResultsSubButtons = gobjects(1, numel(names));
+        for k = 1:numel(names)
+            app.ResultsSubButtons(k) = uibutton(p, 'push', 'Text', names{k}, ...
+                'FontWeight', 'bold', 'FontColor', c.text_light, 'BackgroundColor', c.bg_panel, ...
+                'Position', [24 + (k-1)*178 690 165 34], ...
+                'ButtonPushedFcn', @(~, ~) switchResultsSubView(app, k));
+        end
+
+        app.ResultsSubPanels = gobjects(1, 6);
+        for k = 1:6
+            app.ResultsSubPanels(k) = uipanel(p, 'Title', '', 'BorderType', 'none', ...
+                'BackgroundColor', c.bg_dark, 'Position', [24 90 1100 590], 'Visible', 'off');
+        end
+
+        createResultsPqDashboard(app, app.ResultsSubPanels(1));
+        createResultsComparison(app, app.ResultsSubPanels(2));
+        createResultsHosting(app, app.ResultsSubPanels(3));
+        createResultsCost(app, app.ResultsSubPanels(4));
+        createResultsTwin(app, app.ResultsSubPanels(5));
+        createResultsUq(app, app.ResultsSubPanels(6));
+        switchResultsSubView(app, 1);
+    end
+
+    function createResultsPqDashboard(app, panel)
+        % CREATERESULTSPQDASHBOARD Build KPI text, PQ plot, and bus voltage map.
+        c = app.Theme.colors;
+        ctrl = makeCard(app, panel, 'PQ Dashboard Controls', [0 500 1100 80]);
+        addSmallLabel(app, ctrl, 'Scenario', [20 22 70 22]);
+        app.ResultsPqScenarioDropDown = uidropdown(ctrl, 'Items', {'Last result'}, 'Value', 'Last result', ...
+            'Position', [95 22 185 28], 'ValueChangedFcn', @(~, ~) refreshResultsView(app));
+        uibutton(ctrl, 'push', 'Text', 'Refresh Results', 'FontWeight', 'bold', ...
+            'Position', [305 22 130 30], 'ButtonPushedFcn', @(~, ~) refreshResultsView(app));
+        uibutton(ctrl, 'push', 'Text', 'Pop Out PQ', ...
+            'Position', [455 22 105 30], 'ButtonPushedFcn', @(~, ~) onPopoutResults(app, 'pq'));
+
+        summary = makeCard(app, panel, 'KPI Gauges / Summary', [0 315 330 170]);
+        app.ResultsPqTextArea = uitextarea(summary, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
+            'FontSize', 10, 'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [15 15 300 120], 'Value', {'Run scenarios to populate PQ summary.'});
+
+        plotCard = makeCard(app, panel, 'PQ KPI Overview', [350 315 750 170]);
+        app.ResultsPqAxes = uiaxes(plotCard, 'Position', [35 25 690 110]);
+        title(app.ResultsPqAxes, 'PQ metrics');
+
+        vCard = makeCard(app, panel, 'Bus Voltage Map / Scenario Load Preview', [0 10 1100 285]);
+        app.ResultsVoltageAxes = uiaxes(vCard, 'Position', [35 30 1020 210]);
+        title(app.ResultsVoltageAxes, 'Bus voltage or retained three-phase feeder load');
+    end
+
+    function createResultsComparison(app, panel)
+        % CREATERESULTSCOMPARISON Build multi-scenario comparison chart/table.
+        ctrl = makeCard(app, panel, 'Scenario Comparison Controls', [0 500 1100 80]);
+        addSmallLabel(app, ctrl, 'Metric', [20 22 60 22]);
+        app.ResultsCompareMetricDropDown = uidropdown(ctrl, ...
+            'Items', {'Mean VUF %','Peak VUF %','Vmin pu','Max TL %','Hosting %','Comfort CI','Block Cost EGP'}, ...
+            'Value', 'Mean VUF %', 'Position', [85 22 160 28], ...
+            'ValueChangedFcn', @(~, ~) refreshResultsView(app));
+        uibutton(ctrl, 'push', 'Text', 'Update', 'FontWeight', 'bold', ...
+            'Position', [270 22 95 30], 'ButtonPushedFcn', @(~, ~) refreshResultsView(app));
+        uibutton(ctrl, 'push', 'Text', 'Pop Out', ...
+            'Position', [380 22 95 30], 'ButtonPushedFcn', @(~, ~) onPopoutResults(app, 'comparison'));
+
+        chart = makeCard(app, panel, 'Comparison Chart', [0 185 1100 300]);
+        app.ResultsCompareAxes = uiaxes(chart, 'Position', [45 35 1000 220]);
+        title(app.ResultsCompareAxes, 'Scenario comparison');
+
+        tableCard = makeCard(app, panel, 'Comparison Table', [0 10 1100 155]);
+        app.ResultsCompareTable = uitable(tableCard, 'Position', [15 15 1070 105], ...
+            'ColumnName', {'Scenario','Mean VUF %','Peak VUF %','Vmin pu','Max TL %','Hosting %','Comfort CI','Block Cost EGP'}, ...
+            'Data', cell(0,8));
+    end
+
+    function createResultsHosting(app, panel)
+        % CREATERESULTSHOSTING Build hosting capacity curve and summary table.
+        ctrl = makeCard(app, panel, 'Hosting Capacity', [0 500 1100 80]);
+        uilabel(ctrl, 'Text', 'Displays retained hosting_capacity_pct plus synthetic planning curves for thesis preview.', ...
+            'FontColor', app.Theme.colors.text_light, 'Position', [20 24 760 24]);
+        uibutton(ctrl, 'push', 'Text', 'Refresh', 'FontWeight', 'bold', ...
+            'Position', [840 22 95 30], 'ButtonPushedFcn', @(~, ~) refreshResultsView(app));
+        uibutton(ctrl, 'push', 'Text', 'Pop Out', ...
+            'Position', [950 22 95 30], 'ButtonPushedFcn', @(~, ~) onPopoutResults(app, 'hosting'));
+
+        chart = makeCard(app, panel, 'Hosting Curve', [0 185 1100 300]);
+        app.ResultsHostingAxes = uiaxes(chart, 'Position', [45 35 1000 220]);
+        title(app.ResultsHostingAxes, 'EV penetration versus PQ indicators');
+
+        tableCard = makeCard(app, panel, 'Hosting Summary', [0 10 1100 155]);
+        app.ResultsHostingTable = uitable(tableCard, 'Position', [15 15 1070 105], ...
+            'ColumnName', {'Scenario','Hosting Cap %','Binding Constraint','Mean VUF %','Vmin pu','Max TL %'}, ...
+            'Data', cell(0,6));
+    end
+
+    function createResultsCost(app, panel)
+        % CREATERESULTSCOST Build cost analysis chart/table.
+        ctrl = makeCard(app, panel, 'Cost Analysis Controls', [0 500 1100 80]);
+        addSmallLabel(app, ctrl, 'Tariff', [20 22 60 22]);
+        app.ResultsCostTariffDropDown = uidropdown(ctrl, 'Items', {'Block','Flat','TOU','RTP','Seasonal','CPP','RGDP'}, ...
+            'Value', 'Block', 'Position', [85 22 140 28], 'ValueChangedFcn', @(~, ~) refreshResultsView(app));
+        uibutton(ctrl, 'push', 'Text', 'Update', 'FontWeight', 'bold', ...
+            'Position', [250 22 95 30], 'ButtonPushedFcn', @(~, ~) refreshResultsView(app));
+        uibutton(ctrl, 'push', 'Text', 'Pop Out', ...
+            'Position', [360 22 95 30], 'ButtonPushedFcn', @(~, ~) onPopoutResults(app, 'cost'));
+
+        chart = makeCard(app, panel, 'Monthly Bill / Scenario Cost', [0 185 1100 300]);
+        app.ResultsCostAxes = uiaxes(chart, 'Position', [45 35 1000 220]);
+        title(app.ResultsCostAxes, 'Cost comparison');
+
+        tableCard = makeCard(app, panel, 'Cost Table', [0 10 1100 155]);
+        app.ResultsCostTable = uitable(tableCard, 'Position', [15 15 1070 105], ...
+            'ColumnName', {'Scenario','Tariff','Mean Bill EGP','Min Bill EGP','Max Bill EGP','EV Increment EGP'}, ...
+            'Data', cell(0,6));
+    end
+
+    function createResultsTwin(app, panel)
+        % CREATERESULTSTWIN Build household digital twin inspector.
+        c = app.Theme.colors;
+        ctrl = makeCard(app, panel, 'Digital Twin Inspector', [0 500 1100 80]);
+        addSmallLabel(app, ctrl, 'HH Index', [20 22 75 22]);
+        app.ResultsTwinHouseholdSpinner = uispinner(ctrl, 'Limits', [1 100], 'Value', 1, 'Step', 1, 'Position', [95 22 80 28]);
+        addSmallLabel(app, ctrl, 'Day', [205 22 40 22]);
+        app.ResultsTwinDayDropDown = uidropdown(ctrl, 'Items', {'Summer Weekday','Summer Weekend','Winter Weekday','Winter Weekend'}, ...
+            'Value', 'Summer Weekday', 'Position', [245 22 160 28]);
+        uibutton(ctrl, 'push', 'Text', 'Reload Twin', 'FontWeight', 'bold', ...
+            'Position', [430 22 110 30], 'ButtonPushedFcn', @(~, ~) onReloadResultsTwin(app));
+
+        plotCard = makeCard(app, panel, 'Twin 24h Load Profile', [0 185 660 300]);
+        app.ResultsTwinAxes = uiaxes(plotCard, 'Position', [35 35 585 220]);
+        title(app.ResultsTwinAxes, 'Twin-driven profile');
+
+        flexCard = makeCard(app, panel, 'Flexibility Windows', [680 185 420 300]);
+        app.ResultsTwinFlexTable = uitable(flexCard, 'Position', [15 55 390 190], ...
+            'ColumnName', {'Appliance','Preferred','Window','Max Shift','CI'}, 'Data', cell(0,5));
+        app.ResultsTwinCommandApplianceDropDown = uidropdown(flexCard, 'Items', {'No controllable load'}, ...
+            'Position', [15 15 155 28]);
+        app.ResultsTwinCommandStartEdit = uieditfield(flexCard, 'numeric', 'Value', 1, 'Limits', [1 96], ...
+            'Position', [185 15 70 28]);
+        uibutton(flexCard, 'push', 'Text', 'Send Command', 'Position', [270 15 120 28], ...
+            'ButtonPushedFcn', @(~, ~) onSendTwinCommand(app));
+
+        statusCard = makeCard(app, panel, 'Twin Status', [0 10 1100 155]);
+        app.ResultsTwinStatusText = uitextarea(statusCard, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
+            'FontSize', 10, 'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
+            'Position', [15 15 1070 105], 'Value', {'Reload a household twin to inspect flexibility and EV status.'});
+    end
+
+    function createResultsUq(app, panel)
+        % CREATERESULTSUQ Build Monte Carlo / sensitivity placeholder dashboard.
+        ctrl = makeCard(app, panel, 'Uncertainty Analysis Controls', [0 500 1100 80]);
+        addSmallLabel(app, ctrl, 'Scenario', [20 22 70 22]);
+        app.ResultsUqScenarioDropDown = uidropdown(ctrl, 'Items', {'Scenario 4','Scenario 6'}, 'ItemsData', [4 6], ...
+            'Value', 4, 'Position', [95 22 140 28]);
+        addSmallLabel(app, ctrl, 'N runs', [260 22 60 22]);
+        app.ResultsUqRunsSpinner = uispinner(ctrl, 'Limits', [2 100], 'Value', 10, 'Step', 1, 'Position', [320 22 80 28]);
+        uibutton(ctrl, 'push', 'Text', 'Preview UQ', 'FontWeight', 'bold', ...
+            'Position', [425 22 110 30], 'ButtonPushedFcn', @(~, ~) onPreviewUq(app));
+
+        chart = makeCard(app, panel, 'UQ KPI Distributions', [0 185 1100 300]);
+        app.ResultsUqAxes = uiaxes(chart, 'Position', [45 35 1000 220]);
+        title(app.ResultsUqAxes, 'Monte Carlo / sensitivity preview');
+
+        tableCard = makeCard(app, panel, 'UQ Statistics', [0 10 1100 155]);
+        app.ResultsUqTable = uitable(tableCard, 'Position', [15 15 1070 105], ...
+            'ColumnName', {'KPI','Mean','Std','P5','P50','P95'}, 'Data', cell(0,6));
+    end
+
     function createStatusBar(app)
         % CREATESTATUSBAR Build persistent bottom status area.
         c = app.Theme.colors;
@@ -648,6 +849,7 @@ methods (Access = private)
         refreshFeederView(app);
         onPlotTariffs(app);
         onCalculateBlockBill(app);
+        refreshResultsView(app);
     end
 
     function refreshDashboard(app)
@@ -1060,6 +1262,7 @@ methods (Access = private)
 
         app.all_results_ready = true;
         saveScenarioResults(app);
+        refreshResultsView(app);
         updateProgress(app, 100, 'scenario batch done');
         updateStatus(app, 'Scenario execution finished', 'success');
     end
@@ -1274,6 +1477,420 @@ methods (Access = private)
         app_popout_plot('comparison', app.all_results, app.cfg);
     end
 
+
+    function switchResultsSubView(app, subId)
+        % SWITCHRESULTSSUBVIEW Show one Results sub-view.
+        if isempty(app.ResultsSubPanels)
+            return;
+        end
+        c = app.Theme.colors;
+        for k = 1:numel(app.ResultsSubPanels)
+            
+            if k == subId
+                app.ResultsSubPanels(k).Visible = 'on';
+            else
+                app.ResultsSubPanels(k).Visible = 'off';
+            end
+            if k <= numel(app.ResultsSubButtons)
+                if k == subId
+                    app.ResultsSubButtons(k).BackgroundColor = 0.65 * c.bg_panel + 0.35 * c.accent;
+                else
+                    app.ResultsSubButtons(k).BackgroundColor = c.bg_panel;
+                end
+            end
+        end
+        refreshResultsView(app);
+    end
+
+    function refreshResultsView(app)
+        % REFRESHRESULTSVIEW Refresh all Step 13 result sub-views from lean results.
+        if isempty(app.ResultsSubPanels) || isempty(app.cfg)
+            return;
+        end
+        try
+            [results, labels, ids] = getUiResults(app);
+            updateResultsScenarioDropDown(app, labels, ids);
+            refreshPqDashboard(app, results, labels, ids);
+            refreshComparisonResults(app, results, labels);
+            refreshHostingResults(app, results, labels);
+            refreshCostResults(app, results, labels);
+            refreshUqPreview(app, results, labels);
+        catch ME
+            log(app, sprintf('Results refresh warning: %s', ME.message));
+        end
+    end
+
+    function [results, labels, ids] = getUiResults(app)
+        % GETUIRESULTS Return available in-memory results and labels.
+        idsAll = [-1 0 1 2 3 4 5 6];
+        labelsAll = {'Baseline 0','Scenario 0','Scenario 1','Scenario 2','Scenario 3','Scenario 4','Scenario 5','Scenario 6'};
+        results = {};
+        labels = {};
+        ids = [];
+        if isempty(app.all_results)
+            matFile = fullfile(app.cfg.output_dir, 'scenario_results.mat');
+            if isfile(matFile)
+                try
+                    S = load(matFile, 'all_results');
+                    if isfield(S, 'all_results')
+                        app.all_results = S.all_results;
+                    end
+                catch
+                end
+            end
+        end
+        if isempty(app.all_results)
+            return;
+        end
+        for k = 1:min(numel(app.all_results), numel(idsAll))
+            r = app.all_results{k};
+            if isempty(r)
+                continue;
+            end
+            results{end+1} = r; %#ok<AGROW>
+            if isstruct(r) && isfield(r, 'description') && ~isempty(r.description)
+                labels{end+1} = shortScenarioLabel(r.description, labelsAll{k}); %#ok<AGROW>
+            else
+                labels{end+1} = labelsAll{k}; %#ok<AGROW>
+            end
+            ids(end+1) = idsAll(k); %#ok<AGROW>
+        end
+    end
+
+    function updateResultsScenarioDropDown(app, labels, ids)
+        % UPDATERESULTSSCENARIODROPDOWN Sync scenario dropdown choices.
+        if isempty(app.ResultsPqScenarioDropDown) || ~isvalid(app.ResultsPqScenarioDropDown)
+            return;
+        end
+        if isempty(labels)
+            app.ResultsPqScenarioDropDown.Items = {'No results yet'};
+            app.ResultsPqScenarioDropDown.ItemsData = NaN;
+            app.ResultsPqScenarioDropDown.Value = NaN;
+            return;
+        end
+        current = app.ResultsPqScenarioDropDown.Value;
+        app.ResultsPqScenarioDropDown.Items = labels;
+        app.ResultsPqScenarioDropDown.ItemsData = ids;
+        if any(ids == current)
+            app.ResultsPqScenarioDropDown.Value = current;
+        else
+            app.ResultsPqScenarioDropDown.Value = ids(end);
+        end
+    end
+
+    function r = selectedResultsScenario(app, results, ids)
+        % SELECTEDRESULTSSCENARIO Return currently selected PQ dashboard result.
+        r = [];
+        if isempty(results)
+            return;
+        end
+        sid = app.ResultsPqScenarioDropDown.Value;
+        idx = find(ids == sid, 1, 'first');
+        if isempty(idx)
+            idx = numel(results);
+        end
+        r = results{idx};
+    end
+
+    function refreshPqDashboard(app, results, labels, ids)
+        % REFRESHPQDASHBOARD Update PQ summary and preview plots.
+        %#ok<INUSD>
+        r = selectedResultsScenario(app, results, ids);
+        cla(app.ResultsPqAxes); cla(app.ResultsVoltageAxes);
+        if isempty(r)
+            app.ResultsPqTextArea.Value = {'No scenario results available yet.'; 'Run scenarios from the Scenarios view first.'};
+            return;
+        end
+        meanVuf = resultMetric(r, 'mean_vuf_pct');
+        maxVuf = resultMetric(r, 'max_vuf_pct');
+        vmin = resultMetric(r, 'min_voltage_pu');
+        maxTl = resultMetric(r, 'max_loading_pct');
+        losses = resultMetric(r, 'total_losses_kw');
+        thdi = resultMetric(r, 'max_thdi_pct');
+        thdv = resultMetric(r, 'max_thdv_pct');
+        ci = resultMetric(r, 'mean_ci');
+        host = resultMetric(r, 'hosting_capacity_pct');
+        app.ResultsPqTextArea.Value = {
+            sprintf('Mean VUF      : %.3f %%', meanVuf)
+            sprintf('Peak VUF      : %.3f %%', maxVuf)
+            sprintf('Minimum V     : %.3f pu', vmin)
+            sprintf('Max loading   : %.2f %%', maxTl)
+            sprintf('THDi / THDv   : %.2f %% / %.2f %%', thdi, thdv)
+            sprintf('Losses        : %.3f kW', losses)
+            sprintf('Hosting / CI  : %.1f %% / %.3f', host, ci)
+            };
+        vals = [meanVuf, maxVuf, maxTl, thdi, thdv, losses];
+        labelsK = categorical({'Mean VUF','Peak VUF','Max TL','THDi','THDv','Losses'});
+        bar(app.ResultsPqAxes, labelsK, vals);
+        ylabel(app.ResultsPqAxes, 'Value');
+        grid(app.ResultsPqAxes, 'on');
+        yline(app.ResultsPqAxes, app.cfg.pq_limits.vuf_max_pct, '--', 'VUF limit');
+
+        if isstruct(r) && isfield(r, 'L_feeder_w') && ~isempty(r.L_feeder_w)
+            L = r.L_feeder_w;
+            n = min(size(L,1), 96);
+            plot(app.ResultsVoltageAxes, (1:n), L(1:n,:) / 1000, 'LineWidth', 1.2);
+            xlabel(app.ResultsVoltageAxes, 'Step'); ylabel(app.ResultsVoltageAxes, 'Phase power [kW]');
+            legend(app.ResultsVoltageAxes, {'A','B','C'}, 'Location', 'best');
+            title(app.ResultsVoltageAxes, 'First-day retained three-phase feeder load');
+            grid(app.ResultsVoltageAxes, 'on');
+        else
+            busNames = string(app.net.bus_names(:));
+            vVals = vmin * ones(numel(busNames), 1);
+            bar(app.ResultsVoltageAxes, categorical(busNames), vVals);
+            ylabel(app.ResultsVoltageAxes, 'Voltage [pu]');
+            title(app.ResultsVoltageAxes, 'Voltage summary fallback');
+            yline(app.ResultsVoltageAxes, app.cfg.pq_limits.voltage_min_pu, '--', 'Vmin limit');
+        end
+    end
+
+    function refreshComparisonResults(app, results, labels)
+        % REFRESHCOMPARISONRESULTS Update scenario comparison chart/table.
+        cla(app.ResultsCompareAxes);
+        if isempty(results)
+            app.ResultsCompareTable.Data = cell(0,8);
+            return;
+        end
+        rows = buildResultsMetricRows(results, labels);
+        app.ResultsCompareTable.Data = rows;
+        metric = app.ResultsCompareMetricDropDown.Value;
+        colMap = containers.Map({'Mean VUF %','Peak VUF %','Vmin pu','Max TL %','Hosting %','Comfort CI','Block Cost EGP'}, 2:8);
+        col = colMap(metric);
+        y = cell2mat(rows(:, col));
+        x = categorical(rows(:,1));
+        bar(app.ResultsCompareAxes, x, y);
+        ylabel(app.ResultsCompareAxes, metric);
+        title(app.ResultsCompareAxes, ['Scenario comparison - ', metric]);
+        grid(app.ResultsCompareAxes, 'on');
+        if contains(metric, 'VUF')
+            yline(app.ResultsCompareAxes, app.cfg.pq_limits.vuf_max_pct, '--', 'VUF limit');
+        elseif contains(metric, 'Vmin')
+            yline(app.ResultsCompareAxes, app.cfg.pq_limits.voltage_min_pu, '--', 'Vmin limit');
+        elseif contains(metric, 'TL')
+            yline(app.ResultsCompareAxes, app.cfg.pq_limits.transformer_loading_max_pct, '--', 'TL limit');
+        end
+    end
+
+    function refreshHostingResults(app, results, labels)
+        % REFRESHHOSTINGRESULTS Update hosting chart/table.
+        cla(app.ResultsHostingAxes);
+        if isempty(results)
+            app.ResultsHostingTable.Data = cell(0,6);
+            return;
+        end
+        rows = cell(numel(results), 6);
+        hold(app.ResultsHostingAxes, 'on');
+        pen = 0:5:50;
+        for k = 1:numel(results)
+            r = results{k};
+            host = resultMetric(r, 'hosting_capacity_pct');
+            meanVuf = resultMetric(r, 'mean_vuf_pct');
+            vmin = resultMetric(r, 'min_voltage_pu');
+            maxTl = resultMetric(r, 'max_loading_pct');
+            if isnan(host), host = NaN; end
+            rows{k,1} = labels{k};
+            rows{k,2} = host;
+            rows{k,3} = inferBindingConstraint(meanVuf, vmin, maxTl, app.cfg);
+            rows{k,4} = meanVuf;
+            rows{k,5} = vmin;
+            rows{k,6} = maxTl;
+            if ~isnan(host)
+                y = meanVuf + max(0, (pen - host)) * 0.035;
+                plot(app.ResultsHostingAxes, pen, y, 'LineWidth', 1.2, 'DisplayName', labels{k});
+            end
+        end
+        hold(app.ResultsHostingAxes, 'off');
+        yline(app.ResultsHostingAxes, app.cfg.pq_limits.vuf_max_pct, '--', 'VUF limit');
+        xlabel(app.ResultsHostingAxes, 'EV penetration [%]');
+        ylabel(app.ResultsHostingAxes, 'Estimated VUF [%]');
+        title(app.ResultsHostingAxes, 'Hosting capacity planning preview');
+        grid(app.ResultsHostingAxes, 'on');
+        legend(app.ResultsHostingAxes, 'Location', 'bestoutside');
+        app.ResultsHostingTable.Data = rows;
+    end
+
+    function refreshCostResults(app, results, labels)
+        % REFRESHCOSTRESULTS Update cost chart/table.
+        cla(app.ResultsCostAxes);
+        if isempty(results)
+            app.ResultsCostTable.Data = cell(0,6);
+            return;
+        end
+        tariff = app.ResultsCostTariffDropDown.Value;
+        rows = cell(numel(results), 6);
+        y = nan(numel(results), 1);
+        for k = 1:numel(results)
+            r = results{k};
+            bills = resultBills(r, tariff);
+            inc = resultEvIncrement(r);
+            rows{k,1} = labels{k};
+            rows{k,2} = tariff;
+            rows{k,3} = mean(bills, 'omitnan');
+            rows{k,4} = min(bills, [], 'omitnan');
+            rows{k,5} = max(bills, [], 'omitnan');
+            rows{k,6} = inc;
+            y(k) = rows{k,3};
+        end
+        bar(app.ResultsCostAxes, categorical(labels), y);
+        ylabel(app.ResultsCostAxes, 'Mean bill [EGP]');
+        title(app.ResultsCostAxes, ['Scenario cost - ', tariff]);
+        grid(app.ResultsCostAxes, 'on');
+        app.ResultsCostTable.Data = rows;
+    end
+
+    function onReloadResultsTwin(app)
+        % ONRELOADRESULTSTWIN Create/reload one HouseholdTwin and plot it.
+        cla(app.ResultsTwinAxes);
+        try
+            ensurePopulationReady(app);
+        catch
+        end
+        hIdx = round(app.ResultsTwinHouseholdSpinner.Value);
+        dayText = app.ResultsTwinDayDropDown.Value;
+        calDay = buildUiCalDay(dayText);
+        weatherDay = app.ResultsTwinDayWeather(dayText);
+        twin = HouseholdTwin(hIdx, app.assignment, app.data, app.cfg);
+        twin.generateDayProfile(calDay, weatherDay);
+        app.SimState.results_twin = twin;
+        projection = twin.getProjectedLoad(96);
+        profile = projection.power_w(:);
+        plot(app.ResultsTwinAxes, (0:numel(profile)-1) * app.cfg.simulation.dt_hr, profile, 'LineWidth', 1.3);
+        xlabel(app.ResultsTwinAxes, 'Hour'); ylabel(app.ResultsTwinAxes, 'Power [W]');
+        title(app.ResultsTwinAxes, sprintf('Household %d projected load', hIdx));
+        grid(app.ResultsTwinAxes, 'on');
+        windows = twin.getFlexibilityWindows();
+        [rows, names] = twinFlexRows(windows, app.cfg);
+        app.ResultsTwinFlexTable.Data = rows;
+        if isempty(names)
+            app.ResultsTwinCommandApplianceDropDown.Items = {'No controllable load'};
+            app.ResultsTwinCommandApplianceDropDown.Value = 'No controllable load';
+        else
+            app.ResultsTwinCommandApplianceDropDown.Items = names;
+            app.ResultsTwinCommandApplianceDropDown.Value = names{1};
+            try
+                app.ResultsTwinCommandStartEdit.Value = max(1, round(windows.preferred_start_step(1)));
+            catch
+            end
+        end
+        ev = twin.getEVStatus();
+        app.ResultsTwinStatusText.Value = {
+            sprintf('Household %d | Phase %d | Zone %d', hIdx, twin.phase_id, twin.zone)
+            sprintf('Flexibility windows: %d', size(rows,1))
+            sprintf('EV present field: %d | current measurement bias: %.2f W', isfield(ev, 'present'), twin.current_state.measurement_bias_w)
+            'Use Send Command to test the smart-meter-to-twin DSM API.'
+            };
+    end
+
+    function weatherDay = ResultsTwinDayWeather(app, dayText)
+        % RESULTSTWINDAYWEATHER Build 96-step weather vector for twin preview.
+        steps = 24 * 60 / app.cfg.simulation.dt_min;
+        if contains(dayText, 'Winter', 'IgnoreCase', true)
+            base = 14;
+        else
+            base = 40;
+        end
+        weatherDay = base + 4 * sin((0:steps-1)' / steps * 2*pi - pi/3);
+    end
+
+    function onSendTwinCommand(app)
+        % ONSENDTWINCOMMAND Send DSM command to the current twin.
+        if ~isfield(app.SimState, 'results_twin') || isempty(app.SimState.results_twin)
+            onReloadResultsTwin(app);
+        end
+        twin = app.SimState.results_twin;
+        cmd.appliance = app.ResultsTwinCommandApplianceDropDown.Value;
+        cmd.new_start = round(app.ResultsTwinCommandStartEdit.Value);
+        try
+            [accepted, newCi, reason] = twin.acceptDSMCommand(cmd);
+            status = 'Rejected';
+            if accepted, status = 'Accepted'; end
+            old = app.ResultsTwinStatusText.Value;
+            app.ResultsTwinStatusText.Value = [old; {sprintf('%s command: %s | CI=%.3f', status, reason, newCi)}];
+        catch ME
+            app.ResultsTwinStatusText.Value = [app.ResultsTwinStatusText.Value; {sprintf('Command failed: %s', ME.message)}];
+        end
+    end
+
+    function onPreviewUq(app)
+        % ONPREVIEWUQ Draw lightweight UQ preview from existing scenario results.
+        [results, labels, ids] = getUiResults(app);
+        cla(app.ResultsUqAxes);
+        if isempty(results)
+            app.ResultsUqTable.Data = cell(0,6);
+            return;
+        end
+        refreshUqPreview(app, results, labels);
+    end
+
+    function refreshUqPreview(app, results, labels)
+        % REFRESHUQPREVIEW Build a lightweight KPI distribution preview.
+        if isempty(app.ResultsUqAxes) || ~isvalid(app.ResultsUqAxes)
+            return;
+        end
+        cla(app.ResultsUqAxes);
+        if isempty(results)
+            app.ResultsUqTable.Data = cell(0,6);
+            return;
+        end
+        metrics = {'mean_vuf_pct','max_vuf_pct','min_voltage_pu','max_loading_pct','hosting_capacity_pct','mean_ci'};
+        names = {'Mean VUF','Peak VUF','Vmin','Max TL','Hosting','CI'};
+        vals = nan(numel(results), numel(metrics));
+        for r = 1:numel(results)
+            for k = 1:numel(metrics)
+                vals(r,k) = resultMetric(results{r}, metrics{k});
+            end
+        end
+        mu = mean(vals, 1, 'omitnan');
+        sigma = std(vals, 0, 1, 'omitnan');
+        x = 1:numel(names);
+        bar(app.ResultsUqAxes, x, mu);
+        hold(app.ResultsUqAxes, 'on');
+        errorbar(app.ResultsUqAxes, x, mu, sigma, 'LineStyle', 'none');
+        hold(app.ResultsUqAxes, 'off');
+        app.ResultsUqAxes.XTick = x;
+        app.ResultsUqAxes.XTickLabel = names;
+        title(app.ResultsUqAxes, sprintf('Existing-result KPI spread (%d scenarios)', numel(results)));
+        grid(app.ResultsUqAxes, 'on');
+        rows = cell(numel(metrics), 6);
+        for k = 1:numel(metrics)
+            x = vals(:,k);
+            rows{k,1} = names{k};
+            rows{k,2} = mean(x, 'omitnan');
+            rows{k,3} = std(x, 0, 'omitnan');
+            rows{k,4} = prctile(x, 5);
+            rows{k,5} = prctile(x, 50);
+            rows{k,6} = prctile(x, 95);
+        end
+        app.ResultsUqTable.Data = rows;
+    end
+
+    function onPopoutResults(app, plotType)
+        % ONPOPOUTRESULTS Open a standalone figure for the selected result view.
+        [results, labels, ids] = getUiResults(app);
+        if isempty(results)
+            log(app, 'No results available to pop out. Run scenarios first.');
+            return;
+        end
+        fig = figure('Name', ['Results - ', plotType], 'Color', 'w', 'NumberTitle', 'off');
+        ax = axes(fig);
+        switch lower(plotType)
+            case 'comparison'
+                rows = buildResultsMetricRows(results, labels);
+                vals = cell2mat(rows(:,2));
+                bar(ax, categorical(labels), vals); ylabel(ax, 'Mean VUF [%]'); grid(ax, 'on');
+            case 'hosting'
+                caps = cellfun(@(r) resultMetric(r, 'hosting_capacity_pct'), results);
+                bar(ax, categorical(labels), caps); ylabel(ax, 'Hosting capacity [%]'); grid(ax, 'on');
+            case 'cost'
+                vals = cellfun(@(r) mean(resultBills(r, app.ResultsCostTariffDropDown.Value), 'omitnan'), results);
+                bar(ax, categorical(labels), vals); ylabel(ax, 'Mean bill [EGP]'); grid(ax, 'on');
+            otherwise
+                r = selectedResultsScenario(app, results, ids);
+                vals = [resultMetric(r,'mean_vuf_pct'), resultMetric(r,'max_vuf_pct'), resultMetric(r,'max_loading_pct')];
+                bar(ax, categorical({'Mean VUF','Peak VUF','Max TL'}), vals); grid(ax, 'on');
+        end
+    end
+
     function switchView(app, viewId)
         % SWITCHVIEW Hide all content panels and show one selected panel.
         panels = {app.DashboardPanel, app.ConfigPanel, app.FeederPanel, ...
@@ -1297,6 +1914,9 @@ methods (Access = private)
             end
         end
         app.active_view = viewId;
+        if viewId == 7
+            refreshResultsView(app);
+        end
         updateStatus(app, sprintf('View: %s', app.Theme.nav.labels{viewId}), 'info');
     end
 
@@ -1396,6 +2016,209 @@ methods (Access = private)
         catch ME
             log(app, sprintf('Could not open folder automatically: %s', ME.message));
         end
+    end
+end
+end
+
+
+function label = shortScenarioLabel(description, fallback)
+% SHORTSCENARIOLABEL Compact label for result dropdown/table.
+try
+    txt = char(string(description));
+    if contains(txt, 'Baseline', 'IgnoreCase', true), label = 'Baseline 0'; return; end
+    tok = regexp(txt, 'Scenario\s*([0-9]+(?:\.[0-9]+)?)', 'tokens', 'once');
+    if ~isempty(tok)
+        label = ['Scenario ', tok{1}];
+        return;
+    end
+catch
+end
+label = fallback;
+end
+
+function rows = buildResultsMetricRows(results, labels)
+% BUILDRESULTSMETRICROWS Build lean-compatible comparison table rows.
+rows = cell(numel(results), 8);
+for k = 1:numel(results)
+    r = results{k};
+    rows{k,1} = labels{k};
+    rows{k,2} = resultMetric(r, 'mean_vuf_pct');
+    rows{k,3} = resultMetric(r, 'max_vuf_pct');
+    rows{k,4} = resultMetric(r, 'min_voltage_pu');
+    rows{k,5} = resultMetric(r, 'max_loading_pct');
+    rows{k,6} = resultMetric(r, 'hosting_capacity_pct');
+    rows{k,7} = resultMetric(r, 'mean_ci');
+    rows{k,8} = mean(resultBills(r, 'Block'), 'omitnan');
+end
+end
+
+function v = resultMetric(r, key)
+% RESULTMETRIC Extract common scalar KPI from lean scenario result.
+v = NaN;
+if ~isstruct(r), return; end
+try
+    switch lower(key)
+        case {'hosting_capacity_pct','hosting_cap_pct'}
+            if isfield(r, 'hosting_capacity_pct'), v = scalarMean(r.hosting_capacity_pct); end
+        case {'mean_ci','comfort_ci'}
+            if isfield(r, 'comfort_summary') && isfield(r.comfort_summary, 'mean_ci')
+                v = scalarMean(r.comfort_summary.mean_ci);
+            end
+        case {'max_thdi_pct'}
+            if isfield(r, 'pq_summary')
+                if isfield(r.pq_summary, 'max_thdi_pct'), v = scalarMean(r.pq_summary.max_thdi_pct); return; end
+                if isfield(r.pq_summary, 'thdi_pct'), v = max(r.pq_summary.thdi_pct(:), [], 'omitnan'); return; end
+            end
+        case {'max_thdv_pct'}
+            if isfield(r, 'pq_summary')
+                if isfield(r.pq_summary, 'max_thdv_pct'), v = scalarMean(r.pq_summary.max_thdv_pct); return; end
+                if isfield(r.pq_summary, 'thdv_pct'), v = max(r.pq_summary.thdv_pct(:), [], 'omitnan'); return; end
+            end
+        otherwise
+            if isfield(r, 'pq_summary') && isfield(r.pq_summary, key)
+                v = scalarMean(r.pq_summary.(key));
+            elseif isfield(r, key)
+                v = scalarMean(r.(key));
+            end
+    end
+catch
+    v = NaN;
+end
+end
+
+function v = scalarMean(x)
+% SCALARMEAN Mean numeric/cell/table values, fallback NaN.
+try
+    if istable(x), x = table2array(x); end
+    if iscell(x), x = cell2mat(x); end
+    v = mean(x(:), 'omitnan');
+catch
+    v = NaN;
+end
+end
+
+function bills = resultBills(r, tariff)
+% RESULTBILLS Extract bill vector for a selected tariff from result.costs.
+bills = NaN;
+try
+    if isstruct(r) && isfield(r, 'costs') && isfield(r.costs, 'bill_total')
+        bt = r.costs.bill_total;
+        if isstruct(bt) && isfield(bt, tariff)
+            bills = bt.(tariff);
+        elseif istable(bt) && any(strcmpi(bt.Properties.VariableNames, tariff))
+            bills = bt.(tariff);
+        end
+    end
+catch
+    bills = NaN;
+end
+if isempty(bills), bills = NaN; end
+end
+
+function inc = resultEvIncrement(r)
+% RESULTEVINCREMENT Extract EV cost increment when available.
+inc = NaN;
+try
+    if isstruct(r) && isfield(r, 'costs') && isfield(r.costs, 'ev_cost_increment')
+        inc = scalarMean(r.costs.ev_cost_increment);
+    end
+catch
+end
+end
+
+function c = inferBindingConstraint(meanVuf, vmin, maxTl, cfg)
+% INFERBINDINGCONSTRAINT Human-readable likely binding constraint.
+c = 'None / summary';
+try
+    if ~isnan(meanVuf) && meanVuf > cfg.pq_limits.vuf_max_pct
+        c = 'VUF > limit';
+    elseif ~isnan(vmin) && vmin < cfg.pq_limits.voltage_min_pu
+        c = 'Voltage min';
+    elseif ~isnan(maxTl) && maxTl > cfg.pq_limits.transformer_loading_max_pct
+        c = 'Transformer loading';
+    end
+catch
+end
+end
+
+function [rows, names] = twinFlexRows(windows, cfg)
+% TWINFLEXROWS Convert HouseholdTwin flexibility API into table rows.
+rows = cell(0,5);
+names = {};
+try
+    if isempty(windows), return; end
+    if isstruct(windows) && isfield(windows, 'count') && isfield(windows, 'appliance')
+        A = double(windows.count);
+        for k = 1:A
+            w = struct();
+            w.preferred_start_step = windows.preferred_start_step(k);
+            w.window_start_step = windows.earliest_start_step(k);
+            w.window_end_step = windows.latest_start_step(k);
+            w.max_shift_steps = windows.max_shift_steps(k);
+            nm = char(string(windows.appliance{k}));
+            [rows, names] = addTwinWindowRow(rows, names, nm, w, cfg);
+        end
+    elseif isstruct(windows)
+        f = fieldnames(windows);
+        for k = 1:numel(f)
+            w = windows.(f{k});
+            [rows, names] = addTwinWindowRow(rows, names, f{k}, w, cfg);
+        end
+    elseif iscell(windows)
+        for k = 1:numel(windows)
+            w = windows{k};
+            if isstruct(w) && isfield(w, 'appliance')
+                nm = char(string(w.appliance));
+            else
+                nm = sprintf('Load_%d', k);
+            end
+            [rows, names] = addTwinWindowRow(rows, names, nm, w, cfg);
+        end
+    end
+catch
+end
+end
+
+function [rows, names] = addTwinWindowRow(rows, names, nm, w, cfg)
+% ADDTWINWINDOWROW Append one flexibility row.
+try
+    pref = getStructFieldOr(w, 'preferred_start_step', 1);
+    ws = getStructFieldOr(w, 'window_start_step', getStructFieldOr(w, 'win_start', 1));
+    we = getStructFieldOr(w, 'window_end_step', getStructFieldOr(w, 'win_end', 96));
+    maxShift = getStructFieldOr(w, 'max_shift_steps', abs(we-ws));
+    ci = 1.0;
+    dt = cfg.simulation.dt_min;
+    row = {nm, stepToClock(pref, dt), sprintf('%s-%s', stepToClock(ws, dt), stepToClock(we, dt)), maxShift * dt, ci};
+    rows(end+1,:) = row; %#ok<AGROW>
+    names{end+1} = nm; %#ok<AGROW>
+catch
+end
+end
+
+function v = getStructFieldOr(s, name, default)
+% GETSTRUCTFIELDOR Get struct field or default.
+v = default;
+if isstruct(s) && isfield(s, name), v = s.(name); end
+end
+
+function txt = stepToClock(step, dtMin)
+% STEPTOCLOCK Convert 1-based step to HH:MM string.
+mins = max(0, round((step-1) * dtMin));
+hh = floor(mod(mins, 1440) / 60);
+mm = mod(mins, 60);
+txt = sprintf('%02d:%02d', hh, mm);
+end
+
+function ids = resultIdsFromLabels(labels)
+% RESULTIDSFROMLABELS Backward-compatible helper for labels to scenario ids.
+ids = nan(size(labels));
+for k = 1:numel(labels)
+    txt = char(string(labels{k}));
+    if contains(txt, 'Baseline', 'IgnoreCase', true)
+        ids(k) = -1;
+    else
+        tok = regexp(txt, 'Scenario\s*([0-9]+)', 'tokens', 'once');
+        if ~isempty(tok), ids(k) = str2double(tok{1}); else, ids(k) = k - 2; end
     end
 end
 end
