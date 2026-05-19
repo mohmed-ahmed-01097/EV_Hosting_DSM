@@ -343,3 +343,41 @@ This is the recommended mode for thesis runs. It keeps `results/scenario_results
 ## Phase 10 PART A Bug Fixes
 
 This package includes the mandatory PART A bug fixes from `EV_DSM_BugFix_and_UI_Prompt.md`: config fields, neutral multiplier, V2G revenue fraction, progress callbacks, harmonic PQ integration, UQ utilities, Scenario 2 slow/fast sub-results, and compiled-safe path helper. See `docs/PHASE10_PART_A_BUG_FIXES_IMPLEMENTED.md`.
+
+## Phase 10 PART B Step 9 UI Scaffold
+
+This package starts PART B of `EV_DSM_BugFix_and_UI_Prompt.md` by adding the MATLAB App Designer UI scaffold and helper layer only.
+
+Added UI structure:
+
+```text
+src/ui/
++-- launch_app.m
++-- build_exe.m
++-- README_PHASE10_STEP9.md
++-- app_helpers/
+    +-- get_root_dir.m
+    +-- app_theme.m
+    +-- app_log.m
+    +-- app_kpi_gauges.m
+    +-- app_feeder_plot.m
+    +-- app_load_profile_plot.m
+    +-- app_scenario_comparison.m
+    +-- app_popout_plot.m
+    +-- app_export_helper.m
+    +-- run_scenarios_sequential.m
+```
+
+`EVHostingDSM_App.mlapp` is intentionally not created here. That belongs to PART B Step 10.
+
+Validate Step 9 with:
+
+```matlab
+test_part_b_step9_ui_structure()
+```
+
+or run the full validation suite:
+
+```matlab
+main([], 'validate')
+```

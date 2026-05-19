@@ -1,5 +1,5 @@
 function run_config_tests()
-% RUN_CONFIG_TESTS Run Step 1 and Phase 0 through Phase 9 tests.
+% RUN_CONFIG_TESTS Run Step 1, Phase 0 through Phase 9, and Phase 10 scaffold tests.
 %
 % Author: Mohammed Ahmed
 % Date: 2026
@@ -39,6 +39,7 @@ test_phase7_household_twin();
 test_phase8_tests_inventory();
 test_phase9_main_export();
 test_part_a_bug_fixes();
+test_part_b_step9_ui_structure();
 
-fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables and Phase 10 PART A bug fixes are valid.\n');
+fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables, Phase 10 PART A, and PART B Step 9 UI scaffold are valid.\n');
 end
