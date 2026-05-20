@@ -515,3 +515,20 @@ test_part_b_step16_build_exe()
 ```
 
 Generated build support files are written to `exe/build_manifest.json` and `exe/README_DISTRIBUTION.txt`. When compiled, results are written to the user-writable `EV_DSM_Results` folder under `userpath`.
+
+## Phase 10 UI professional responsiveness patch
+
+A UI patch was added to improve scenario-run responsiveness, status-clock updates, dark-theme plot styling, configuration group visibility, and saved-state restoration.
+
+Key files:
+- `src/ui/app_helpers/style_app_axes.m`
+- `src/ui/EVHostingDSM_App.m`
+- `src/scenarios/run_scenario_core.m`
+- `tests/test_part_b_ui_professional_patch.m`
+
+Validate with:
+
+```matlab
+test_part_b_ui_professional_patch()
+launch_app()
+```

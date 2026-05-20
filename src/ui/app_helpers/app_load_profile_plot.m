@@ -29,19 +29,21 @@ steps = size(pMat, 1);
 hours = (0:steps-1)' * dtMin / 60;
 
 cla(ax);
+style_app_axes(ax);
 if isempty(pMat)
     title(ax, 'Load profile unavailable');
     return;
 end
 
-area(ax, hours, pMat / 1000, 'LineStyle', 'none');
+area(ax, hours, pMat / 1000, 'LineStyle', 'none', 'FaceAlpha', 0.86);
 grid(ax, 'on');
 box(ax, 'on');
 xlabel(ax, 'Hour of day');
 ylabel(ax, 'Power [kW]');
 title(ax, '24-hour Household Load Profile');
 xlim(ax, [0, max(24, max(hours))]);
-legend(ax, labels, 'Location', 'best');
+legend(ax, labels, 'Location', 'northoutside', 'Orientation', 'horizontal');
+style_app_axes(ax);
 end
 
 function [pMat, labels, dtMin] = normalize_profile(profile, cfg)

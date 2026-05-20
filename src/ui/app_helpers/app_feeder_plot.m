@@ -25,6 +25,7 @@ if nargin < 3 || isempty(ax)
 end
 
 cla(ax);
+style_app_axes(ax);
 hold(ax, 'on');
 axis(ax, 'equal');
 grid(ax, 'on');
@@ -37,7 +38,8 @@ if ~isstruct(net) || ~isfield(net, 'n_buses')
 end
 
 coords = compute_bus_coordinates(net);
-zoneColors = lines(max(5, get_field(net, 'n_transformers', 5)));
+zoneColors = [0.00 0.62 0.78; 0.93 0.49 0.19; 0.98 0.72 0.18; 0.50 0.30 0.72; 0.40 0.70 0.30; 0.70 0.70 0.70];
+zoneColors = zoneColors(1:max(5, get_field(net, 'n_transformers', 5)), :);
 
 % Draw branches.
 for br = 1:get_field(net, 'n_branches', 0)
@@ -63,21 +65,22 @@ for b = 1:net.n_buses
     plot(ax, coords(b,1), coords(b,2), 'o', ...
         'MarkerSize', markerSize, ...
         'MarkerFaceColor', zoneColors(zone, :), ...
-        'MarkerEdgeColor', [0.05, 0.05, 0.05]);
+        'MarkerEdgeColor', [0.92, 0.92, 0.95]);
     text(ax, coords(b,1)+0.04, coords(b,2)+0.04, bus_label(net, b), ...
-        'FontSize', 8, 'Interpreter', 'none');
+        'FontSize', 8, 'Interpreter', 'none', 'Color', [0.94, 0.96, 0.98]);
 end
 
 % Draw transformer markers.
 for z = 1:get_field(net, 'n_transformers', 5)
     plot(ax, -0.8, -z, 's', 'MarkerSize', 12, ...
-        'MarkerFaceColor', zoneColors(z,:), 'MarkerEdgeColor', 'k');
-    text(ax, -1.25, -z, sprintf('T%d', z), 'FontWeight', 'bold');
+        'MarkerFaceColor', zoneColors(z,:), 'MarkerEdgeColor', [0.94,0.96,0.98]);
+    text(ax, -1.25, -z, sprintf('T%d', z), 'FontWeight', 'bold', 'Color', [0.94,0.96,0.98]);
 end
 
 xlabel(ax, 'Feeder distance (schematic)');
 ylabel(ax, 'Transformer zone');
 title(ax, 'LV Radial Feeder Topology');
+style_app_axes(ax);
 hold(ax, 'off');
 end
 

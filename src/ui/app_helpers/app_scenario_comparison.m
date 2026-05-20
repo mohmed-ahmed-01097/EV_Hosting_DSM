@@ -41,8 +41,10 @@ summaryTable = table(scenario, description, value, ...
 if ~isempty(ax)
     try
         cla(ax);
+style_app_axes(ax);
         bar(ax, value);
         grid(ax, 'on');
+style_app_axes(ax);
         xlabel(ax, 'Scenario');
         ylabel(ax, strrep(metric, '_', ' '));
         title(ax, 'Scenario Comparison');

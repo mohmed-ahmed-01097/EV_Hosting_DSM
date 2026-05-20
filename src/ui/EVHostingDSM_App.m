@@ -162,6 +162,18 @@ properties (Access = private)
     TestsSaveButton
 
     ScenarioStopRequested logical = false
+
+    ClockTimer
+    LastStatusMessage char = 'ready'
+    LastStatusLevel char = 'info'
+    LastProgressPct double = 100
+    LastProgressStage char = 'ready'
+
+    ConfigGroupTitleLabel
+    ConfigAdvancedTable
+    ConfigDynamicPanel
+    ConfigDynamicControls
+    TestsStateLoaded logical = false
 end
 
 methods (Access = public)
@@ -171,6 +183,7 @@ methods (Access = public)
         createComponents(app);
         registerApp(app, app.UIFigure);
         runStartup(app);
+        startClockTimer(app);
         app.UIFigure.Visible = 'on';
 
         if nargout == 0
@@ -180,6 +193,10 @@ methods (Access = public)
 
     function delete(app)
         % DELETE Close UI resources cleanly.
+        try
+            stopClockTimer(app);
+        catch
+        end
         if ~isempty(app.UIFigure) && isvalid(app.UIFigure)
             delete(app.UIFigure);
         end
@@ -209,6 +226,7 @@ methods (Access = private)
         createContentPanels(app);
         createStatusBar(app);
         switchView(app, 1);
+        styleAllAxes(app);
     end
 
     function createSidebar(app)
@@ -436,9 +454,20 @@ methods (Access = private)
         app.ConfigComfortThresholdSlider = uislider(right, 'Limits', [0 1], 'Value', 0.30, 'Position', [210 y+10 300 3]);
 
         addSmallLabel(app, right, 'Appliance Flexibility', [24 200 250 22]);
-        app.ConfigFlexTable = uitable(right, 'Position', [24 65 720 125], ...
+        app.ConfigFlexTable = uitable(right, 'Position', [24 65 330 125], ...
             'ColumnName', {'Appliance','Max Shift min','Comfort Weight','Controllable'}, ...
             'ColumnEditable', [false true true true], 'Data', cell(0,4));
+        style_app_table(app.ConfigFlexTable, app.Theme);
+
+        app.ConfigGroupTitleLabel = uilabel(right, 'Text', 'Selected group values', ...
+            'FontSize', 11, 'FontWeight', 'bold', 'FontColor', c.text_light, ...
+            'Position', [380 200 330 22]);
+        app.ConfigDynamicPanel = uipanel(right, ...
+            'Title', '', ...
+            'BorderType', 'none', ...
+            'BackgroundColor', c.bg_panel, ...
+            'Position', [380 65 360 125]);
+        app.ConfigDynamicControls = {};
 
         uibutton(right, 'push', 'Text', 'Save to cfg', 'FontWeight', 'bold', ...
             'Position', [24 18 120 34], 'ButtonPushedFcn', @(~, ~) onSaveConfig(app));
@@ -464,6 +493,7 @@ methods (Access = private)
         assignCard = makeCard(app, p, 'Assignment Summary', [774 315 350 415]);
         app.FeederAssignmentTable = uitable(assignCard, 'Position', [18 55 310 310], ...
             'ColumnName', {'Zone','HH','EV','V2G','Phase A','Phase B','Phase C'}, 'Data', cell(0,7));
+        style_app_table(app.FeederAssignmentTable, app.Theme);
         uibutton(assignCard, 'push', 'Text', 'Re-Assign', 'Position', [18 14 120 30], ...
             'ButtonPushedFcn', @(~, ~) onReassignHouseholds(app));
 
@@ -546,6 +576,7 @@ methods (Access = private)
             'FontColor', c.accent, 'Position', [490 150 320 28]);
         app.BlockSlabTable = uitable(block, 'Position', [24 18 1040 115], ...
             'ColumnName', {'Slab','Energy kWh','Rate EGP/kWh','Charge EGP'}, 'Data', cell(0,4));
+        style_app_table(app.BlockSlabTable, app.Theme);
     end
 
     function createScenariosView(app)
@@ -735,11 +766,12 @@ methods (Access = private)
         tableCard = makeCard(app, p, 'Validation Test Matrix', [24 250 690 370]);
         app.TestsTable = uitable(tableCard, ...
             'Position', [15 15 660 315], ...
-            'ColumnName', {'Run','Test','Status','Time_s','Last result'}, ...
-            'ColumnEditable', [true false false false false], ...
-            'ColumnFormat', {'logical','char','char','numeric','char'}, ...
+            'ColumnName', {'Run','Test','Status','Time_s','Last run','Last result'}, ...
+            'ColumnEditable', [true false false false false false], ...
+            'ColumnFormat', {'logical','char','char','numeric','char','char'}, ...
             'CellSelectionCallback', @(~, event) onTestTableSelection(app, event), ...
             'Data', buildInitialTestTable(app));
+        style_app_table(app.TestsTable, app.Theme);
 
         detailCard = makeCard(app, p, 'DETAIL', [734 250 390 370]);
         app.TestsDetailText = uitextarea(detailCard, 'Editable', 'off', ...
@@ -804,6 +836,7 @@ methods (Access = private)
         app.ResultsCompareTable = uitable(tableCard, 'Position', [15 15 1070 105], ...
             'ColumnName', {'Scenario','Mean VUF %','Peak VUF %','Vmin pu','Max TL %','Hosting %','Comfort CI','Block Cost EGP'}, ...
             'Data', cell(0,8));
+        style_app_table(app.ResultsCompareTable, app.Theme);
     end
 
     function createResultsHosting(app, panel)
@@ -824,6 +857,7 @@ methods (Access = private)
         app.ResultsHostingTable = uitable(tableCard, 'Position', [15 15 1070 105], ...
             'ColumnName', {'Scenario','Hosting Cap %','Binding Constraint','Mean VUF %','Vmin pu','Max TL %'}, ...
             'Data', cell(0,6));
+        style_app_table(app.ResultsHostingTable, app.Theme);
     end
 
     function createResultsCost(app, panel)
@@ -845,6 +879,7 @@ methods (Access = private)
         app.ResultsCostTable = uitable(tableCard, 'Position', [15 15 1070 105], ...
             'ColumnName', {'Scenario','Tariff','Mean Bill EGP','Min Bill EGP','Max Bill EGP','EV Increment EGP'}, ...
             'Data', cell(0,6));
+        style_app_table(app.ResultsCostTable, app.Theme);
     end
 
     function createResultsTwin(app, panel)
@@ -866,6 +901,7 @@ methods (Access = private)
         flexCard = makeCard(app, panel, 'Flexibility Windows', [680 185 420 300]);
         app.ResultsTwinFlexTable = uitable(flexCard, 'Position', [15 55 390 190], ...
             'ColumnName', {'Appliance','Preferred','Window','Max Shift','CI'}, 'Data', cell(0,5));
+        style_app_table(app.ResultsTwinFlexTable, app.Theme);
         app.ResultsTwinCommandApplianceDropDown = uidropdown(flexCard, 'Items', {'No controllable load'}, ...
             'Position', [15 15 155 28]);
         app.ResultsTwinCommandStartEdit = uieditfield(flexCard, 'numeric', 'Value', 1, 'Limits', [1 96], ...
@@ -897,6 +933,7 @@ methods (Access = private)
         tableCard = makeCard(app, panel, 'UQ Statistics', [0 10 1100 155]);
         app.ResultsUqTable = uitable(tableCard, 'Position', [15 15 1070 105], ...
             'ColumnName', {'KPI','Mean','Std','P5','P50','P95'}, 'Data', cell(0,6));
+        style_app_table(app.ResultsUqTable, app.Theme);
     end
 
     function createStatusBar(app)
@@ -971,6 +1008,7 @@ methods (Access = private)
             log(app, sprintf('Feeder ready: %d buses, %d branches', app.net.n_buses, app.net.n_branches));
 
             refreshAllImplementedViews(app);
+            loadSavedUiState(app);
             updateProgress(app, 100, 'ready');
             app.is_initialized = true;
             updateStatus(app, 'Ready', 'success');
@@ -1013,7 +1051,12 @@ methods (Access = private)
             app.DashboardKpiLabels(3).Text = sprintf('%.0f%% target', 100 * app.cfg.ev.penetration_rate);
             app.DashboardKpiLabels(4).Text = sprintf('CI >= %.2f', app.cfg.dsm.comfort_ci_threshold);
             app.DashboardKpiLabels(5).Text = 'None yet';
+            lastResult = getLatestScenarioResult(app);
+            if ~isempty(lastResult)
+                updateDashboardFromScenario(app, lastResult);
+            end
             app_feeder_plot(app.net, app.assignment, app.DashboardFeederAxes);
+            style_app_axes(app.DashboardFeederAxes, app.Theme);
         catch ME
             log(app, sprintf('Dashboard refresh warning: %s', ME.message));
         end
@@ -1039,6 +1082,7 @@ methods (Access = private)
             app.ConfigLambdaEdit.Value = app.cfg.dsm.lambda_comfort;
             app.ConfigComfortThresholdSlider.Value = app.cfg.dsm.comfort_ci_threshold;
             app.ConfigFlexTable.Data = buildFlexibilityTable(app.cfg);
+            updateConfigGroupView(app);
             app.ConfigValidationText.Value = {'Config loaded into UI controls.'};
         catch ME
             app.ConfigValidationText.Value = {sprintf('Config refresh error: %s', ME.message)};
@@ -1046,7 +1090,8 @@ methods (Access = private)
     end
 
     function onConfigGroupChanged(app)
-        % ONCONFIGGROUPCHANGED Log current group selection.
+        % ONCONFIGGROUPCHANGED Update the selected-group config table.
+        updateConfigGroupView(app);
         log(app, sprintf('Config group selected: %s', app.ConfigGroupList.Value));
     end
 
@@ -1071,6 +1116,7 @@ methods (Access = private)
             app.cfg.dsm.controller = app.ConfigDsmControllerDropDown.Value;
             app.cfg.dsm.lambda_comfort = app.ConfigLambdaEdit.Value;
             app.cfg.dsm.comfort_ci_threshold = app.ConfigComfortThresholdSlider.Value;
+            syncDynamicConfigControls(app);
             app.cfg = applyFlexibilityTable(app.cfg, app.ConfigFlexTable.Data);
             app.ConfigValidationText.Value = {'Saved UI values to in-memory cfg.', 'Use Export/Config save in later UI steps for file persistence.'};
             log(app, 'Configuration values saved to app.cfg.');
@@ -1193,6 +1239,7 @@ methods (Access = private)
         yticklabels(ax, {'State'});
         title(ax, 'Occupancy: 0 Away, 1 Awake, 2 Asleep');
         xlim(ax, [0 24]);
+        style_app_axes(ax, app.Theme);
     end
 
     function onPopoutLastLoad(app)
@@ -1256,6 +1303,7 @@ methods (Access = private)
             title(app.LiveLoadAxes, 'Mean Load per Transformer Zone - no population cache');
             xlabel(app.LiveLoadAxes, 'Zone');
             ylabel(app.LiveLoadAxes, 'Mean Load [W]');
+            style_app_axes(app.LiveLoadAxes, app.Theme);
             return;
         end
         zoneMeans = zeros(1, app.cfg.feeder.num_transformer_zones);
@@ -1269,6 +1317,7 @@ methods (Access = private)
         grid(app.LiveLoadAxes, 'on');
         xlabel(app.LiveLoadAxes, 'Transformer Zone');
         ylabel(app.LiveLoadAxes, 'Mean Load [W]');
+        style_app_axes(app.LiveLoadAxes, app.Theme);
         title(app.LiveLoadAxes, 'Mean Load per Transformer Zone');
     end
 
@@ -1306,6 +1355,7 @@ methods (Access = private)
             xlim(app.PricingAxes, [0 24]);
         end
         hold(app.PricingAxes, 'off');
+        style_app_axes(app.PricingAxes, app.Theme);
     end
 
     function onCalculateBlockBill(app)
@@ -1518,6 +1568,7 @@ methods (Access = private)
         cla(app.ScenarioLiveAxes);
         title(app.ScenarioLiveAxes, 'Live / Last Scenario Three-Phase Feeder Load');
         updateScenarioProgress(app, 0, 'reset');
+        saveUiState(app);
         log(app, 'Scenario view reset.');
     end
 
@@ -1560,6 +1611,7 @@ methods (Access = private)
             ylabel(app.ScenarioLiveAxes, 'Power [kW]');
             legend(app.ScenarioLiveAxes, {'Phase A','Phase B','Phase C'}, 'Location', 'best');
             title(app.ScenarioLiveAxes, plotTitle);
+            style_app_axes(app.ScenarioLiveAxes, app.Theme);
         catch ME
             title(app.ScenarioLiveAxes, sprintf('Live plot failed: %s', ME.message));
         end
@@ -1604,6 +1656,7 @@ methods (Access = private)
             all_results = app.all_results; %#ok<NASGU>
             outFile = fullfile(app.cfg.output_dir, 'scenario_results.mat');
             save(outFile, 'all_results', '-v7.3');
+            saveUiState(app);
             logScenario(app, sprintf('Scenario results saved: %s', outFile));
         catch ME
             logScenario(app, sprintf('Could not save scenario_results.mat: %s', ME.message));
@@ -1657,6 +1710,7 @@ methods (Access = private)
             refreshHostingResults(app, results, labels);
             refreshCostResults(app, results, labels);
             refreshUqPreview(app, results, labels);
+            styleAllAxes(app);
         catch ME
             log(app, sprintf('Results refresh warning: %s', ME.message));
         end
@@ -1706,8 +1760,8 @@ methods (Access = private)
         end
         if isempty(labels)
             app.ResultsPqScenarioDropDown.Items = {'No results yet'};
-            app.ResultsPqScenarioDropDown.ItemsData = NaN;
-            app.ResultsPqScenarioDropDown.Value = NaN;
+            app.ResultsPqScenarioDropDown.ItemsData = 0;
+            app.ResultsPqScenarioDropDown.Value = 0;
             return;
         end
         current = app.ResultsPqScenarioDropDown.Value;
@@ -2211,13 +2265,14 @@ methods (Access = private)
     function data = buildInitialTestTable(app)
         % BUILDINITIALTESTTABLE Return default Tests view table data.
         names = appDefaultTestNames();
-        data = cell(numel(names), 5);
+        data = cell(numel(names), 6);
         for k = 1:numel(names)
             data{k,1} = true;
             data{k,2} = names{k};
             data{k,3} = 'Queued';
             data{k,4} = NaN;
-            data{k,5} = 'Not run yet';
+            data{k,5} = 'Never';
+            data{k,6} = 'Not run yet';
         end
     end
 
@@ -2226,10 +2281,54 @@ methods (Access = private)
         if isempty(app.TestsTable) || ~isvalid(app.TestsTable)
             return;
         end
-        if isempty(app.TestsTable.Data)
+        if ~app.TestsStateLoaded
+            app.TestsTable.Data = loadSavedTestTable(app);
+            app.TestsStateLoaded = true;
+        elseif isempty(app.TestsTable.Data)
             app.TestsTable.Data = buildInitialTestTable(app);
         end
         updateTestsSummary(app);
+    end
+
+
+    function data = loadSavedTestTable(app)
+        % LOADSAVEDTESTTABLE Restore last saved UI test report when available.
+        data = buildInitialTestTable(app);
+        try
+            if isempty(app.cfg) || ~isfield(app.cfg, 'tables_dir')
+                return;
+            end
+            reportFile = fullfile(app.cfg.tables_dir, 'ui_test_report.csv');
+            if ~isfile(reportFile)
+                app.TestsDetailText.Value = {'No previous UI test report found.', sprintf('Expected: %s', reportFile)};
+                return;
+            end
+            T = readtable(reportFile, 'TextType', 'string');
+            hasNew = all(ismember({'Run','Test','Status','Time_s','LastRunAt','LastResult'}, T.Properties.VariableNames));
+            hasOld = all(ismember({'Run','Test','Status','Time_s','LastResult'}, T.Properties.VariableNames));
+            if hasNew || hasOld
+                n = min(height(T), size(data,1));
+                for k = 1:n
+                    data{k,1} = logical(T.Run(k));
+                    data{k,2} = char(T.Test(k));
+                    data{k,3} = char(T.Status(k));
+                    data{k,4} = T.Time_s(k);
+                    if hasNew
+                        data{k,5} = char(T.LastRunAt(k));
+                        data{k,6} = char(T.LastResult(k));
+                    else
+                        data{k,5} = 'Imported old report';
+                        data{k,6} = char(T.LastResult(k));
+                    end
+                end
+                app.TestsDetailText.Value = { ...
+                    sprintf('Restored previous test report: %s', reportFile), ...
+                    sprintf('Last stored row timestamp: %s', data{max(1,n),5})};
+                log(app, sprintf('Restored previous UI test report: %s', reportFile));
+            end
+        catch ME
+            app.TestsDetailText.Value = {sprintf('Could not restore previous test report: %s', ME.message)};
+        end
     end
 
     function onRunAllUiTests(app)
@@ -2277,7 +2376,8 @@ methods (Access = private)
             if ~selected(k), continue; end
             testName = data{k, 2};
             data{k, 3} = 'Running';
-            data{k, 5} = 'Executing...';
+            data{k, 5} = datestr(now, 31);
+            data{k, 6} = 'Executing...';
             app.TestsTable.Data = data;
             updateUiTestProgress(app, done, nSelected, sprintf('Running %s', testName));
             drawnow('limitrate');
@@ -2286,7 +2386,8 @@ methods (Access = private)
             done = done + 1;
             data{k, 3} = result.status;
             data{k, 4} = result.time_s;
-            data{k, 5} = result.message;
+            data{k, 5} = datestr(now, 31);
+            data{k, 6} = result.message;
             app.TestsTable.Data = data;
             app.TestsDetailText.Value = result.detail(:);
             log(app, sprintf('Test %s: %s (%.2fs)', testName, result.status, result.time_s));
@@ -2295,6 +2396,7 @@ methods (Access = private)
         end
 
         updateTestsSummary(app);
+        onSaveUiTestReport(app);
         updateStatus(app, 'Tests complete', 'success');
     end
 
@@ -2349,7 +2451,11 @@ methods (Access = private)
             end
             if exist(app.cfg.tables_dir, 'dir') ~= 7, mkdir(app.cfg.tables_dir); end
             data = app.TestsTable.Data;
-            T = cell2table(data, 'VariableNames', {'Run','Test','Status','Time_s','LastResult'});
+            if size(data, 2) < 6
+                data(:,6) = data(:,5);
+                data(:,5) = {'Unknown'};
+            end
+            T = cell2table(data, 'VariableNames', {'Run','Test','Status','Time_s','LastRunAt','LastResult'});
             outFile = fullfile(app.cfg.tables_dir, 'ui_test_report.csv');
             writetable(T, outFile);
             app.TestsDetailText.Value = {sprintf('Saved test report: %s', outFile)};
@@ -2371,7 +2477,8 @@ methods (Access = private)
                 sprintf('Test: %s', data{row,2}), ...
                 sprintf('Status: %s', data{row,3}), ...
                 sprintf('Time_s: %.3g', data{row,4}), ...
-                sprintf('Last result: %s', data{row,5})};
+                sprintf('Last run: %s', data{row,5}), ...
+                sprintf('Last result: %s', data{row,6})};
         catch
         end
     end
@@ -2406,6 +2513,7 @@ methods (Access = private)
         elseif viewId == 9
             refreshTestsView(app);
         end
+        styleAllAxes(app);
         updateStatus(app, sprintf('View: %s', app.Theme.nav.labels{viewId}), 'info');
     end
 
@@ -2419,7 +2527,9 @@ methods (Access = private)
             case 'danger',  color = c.danger;
             case 'info',    color = c.accent;
         end
-        app.StatusBar.Text = sprintf('%s | %s', datestr(now, 'HH:MM:SS'), msg);
+        app.LastStatusMessage = char(string(msg));
+        app.LastStatusLevel = char(string(level));
+        app.StatusBar.Text = sprintf('%s | View: %s | %s', datestr(now, 'HH:MM:SS'), app.Theme.nav.labels{app.active_view}, msg);
         app.StatusBar.FontColor = color;
         drawnow('limitrate');
     end
@@ -2430,6 +2540,8 @@ methods (Access = private)
         nBlocks = 20;
         nFill = round(nBlocks * pct / 100);
         barText = ['[', repmat('#', 1, nFill), repmat('-', 1, nBlocks - nFill), sprintf('] %3d%%', pct)];
+        app.LastProgressPct = pct;
+        app.LastProgressStage = char(string(msg));
         app.ProgressBar.Text = barText;
         app.ProgressLabel.Text = sprintf('Stage: %s', msg);
         drawnow('limitrate');
@@ -2446,6 +2558,293 @@ methods (Access = private)
         catch
         end
         drawnow('limitrate');
+    end
+
+
+    function updateConfigGroupView(app)
+        % UPDATECONFIGGROUPVIEW Rebuild selected-group controls with edit boxes/sliders.
+        if isempty(app.cfg) || isempty(app.ConfigDynamicPanel) || ~isvalid(app.ConfigDynamicPanel)
+            return;
+        end
+        group = char(string(app.ConfigGroupList.Value));
+        app.ConfigGroupTitleLabel.Text = sprintf('%s editor', group);
+        try
+            rebuildConfigDynamicControls(app, group);
+        catch ME
+            delete(allchild(app.ConfigDynamicPanel));
+            uilabel(app.ConfigDynamicPanel, 'Text', sprintf('Config view error: %s', ME.message), ...
+                'FontColor', app.Theme.colors.danger, 'WordWrap', 'on', 'Position', [8 45 330 55]);
+        end
+    end
+
+    function rebuildConfigDynamicControls(app, group)
+        % REBUILDCONFIGDYNAMICCONTROLS Render text boxes/sliders for selected config group.
+        c = app.Theme.colors;
+        delete(allchild(app.ConfigDynamicPanel));
+        app.ConfigDynamicControls = {};
+        fields = configFieldsForGroup(app, group);
+        if isempty(fields)
+            uilabel(app.ConfigDynamicPanel, 'Text', 'No editable fields for this group.', ...
+                'FontColor', c.text_muted, 'Position', [8 55 330 24]);
+            return;
+        end
+        maxRows = min(numel(fields), 4);
+        y0 = 92;
+        for k = 1:maxRows
+            f = fields(k);
+            y = y0 - (k-1)*28;
+            uilabel(app.ConfigDynamicPanel, 'Text', f.label, 'FontColor', c.text_light, ...
+                'FontSize', 10, 'Position', [8 y 122 20]);
+            value = getNestedConfigValue(app.cfg, f.path, f.defaultValue);
+            switch f.type
+                case 'numeric'
+                    edit = uieditfield(app.ConfigDynamicPanel, 'numeric', ...
+                        'Value', double(value), 'Position', [135 y 80 22], ...
+                        'ValueChangedFcn', @(src, ~) onDynamicConfigControlChanged(app, src));
+                    if isfield(f, 'limits') && ~isempty(f.limits)
+                        edit.Limits = f.limits;
+                    end
+                    edit.UserData = f;
+                    app.ConfigDynamicControls{end+1} = edit; %#ok<AGROW>
+                    if isfield(f, 'slider') && f.slider
+                        slider = uislider(app.ConfigDynamicPanel, 'Limits', f.limits, ...
+                            'Value', min(max(double(value), f.limits(1)), f.limits(2)), ...
+                            'Position', [225 y+11 120 3], ...
+                            'ValueChangedFcn', @(src, ~) onDynamicConfigControlChanged(app, src));
+                        slider.UserData = f;
+                        app.ConfigDynamicControls{end+1} = slider; %#ok<AGROW>
+                    end
+                case 'logical'
+                    chk = uicheckbox(app.ConfigDynamicPanel, 'Text', '', 'Value', logical(value), ...
+                        'Position', [135 y 50 22], ...
+                        'ValueChangedFcn', @(src, ~) onDynamicConfigControlChanged(app, src));
+                    chk.UserData = f;
+                    app.ConfigDynamicControls{end+1} = chk; %#ok<AGROW>
+                otherwise
+                    edit = uieditfield(app.ConfigDynamicPanel, 'text', ...
+                        'Value', char(string(value)), 'Position', [135 y 205 22], ...
+                        'ValueChangedFcn', @(src, ~) onDynamicConfigControlChanged(app, src));
+                    edit.UserData = f;
+                    app.ConfigDynamicControls{end+1} = edit; %#ok<AGROW>
+            end
+        end
+        if numel(fields) > maxRows
+            uilabel(app.ConfigDynamicPanel, 'Text', sprintf('+ %d more saved in JSON / advanced config', numel(fields)-maxRows), ...
+                'FontColor', c.text_muted, 'FontSize', 9, 'Position', [8 4 330 18]);
+        end
+    end
+
+    function fields = configFieldsForGroup(app, group)
+        % CONFIGFIELDSFORGROUP Define group-specific editable controls.
+        fields = struct('label', {}, 'path', {}, 'type', {}, 'defaultValue', {}, 'limits', {}, 'slider', {});
+        switch group
+            case 'Simulation'
+                fields = [ ...
+                    makeCfgField('Start date','simulation.start_date','text','2025-01-01'), ...
+                    makeCfgField('End date','simulation.end_date','text','2025-12-31'), ...
+                    makeCfgField('dt min','simulation.dt_min','numeric',15,[1 30],true), ...
+                    makeCfgField('Mode','simulation.mode','text','representative')];
+            case 'EV Parameters'
+                fields = [ ...
+                    makeCfgField('EV fraction','ev.penetration_rate','numeric',app.cfg.ev.penetration_rate,[0 1],true), ...
+                    makeCfgField('Slow kW','ev.slow_kw','numeric',3.7,[0.1 50],false), ...
+                    makeCfgField('Fast kW','ev.fast_kw','numeric',7.4,[0.1 100],false), ...
+                    makeCfgField('V2G frac','ev.v2g_revenue_fraction','numeric',0.50,[0 1],true), ...
+                    makeCfgField('SOC reserve','ev.soc_v2g_reserve_pct','numeric',30,[0 100],true)];
+            case 'PQ Limits'
+                fields = [ ...
+                    makeCfgField('VUF max %','pq_limits.vuf_max_pct','numeric',2,[0 10],true), ...
+                    makeCfgField('V min pu','pq_limits.voltage_min_pu','numeric',0.90,[0.80 1.0],true), ...
+                    makeCfgField('V max pu','pq_limits.voltage_max_pu','numeric',1.10,[1.0 1.20],true), ...
+                    makeCfgField('THDv max','pq_limits.thdv_max_pct','numeric',8,[0 20],true), ...
+                    makeCfgField('THDi max','pq_limits.thdi_max_pct','numeric',15,[0 40],true), ...
+                    makeCfgField('TL max %','pq_limits.transformer_loading_max_pct','numeric',100,[50 150],true)];
+            case 'DSM Controller'
+                fields = [ ...
+                    makeCfgField('Controller','dsm.controller','text','milp'), ...
+                    makeCfgField('Lambda','dsm.lambda_comfort','numeric',0.001,[0 0.1],false), ...
+                    makeCfgField('CI min','dsm.comfort_ci_threshold','numeric',0.30,[0 1],true), ...
+                    makeCfgField('Horizon','dsm.scheduling_horizon_steps','numeric',96,[24 192],true), ...
+                    makeCfgField('Coord iter','dsm.max_coordination_iterations','numeric',3,[1 10],true)];
+            case 'Pricing'
+                fields = [ ...
+                    makeCfgField('Flat EGP','pricing.flat_rate_egp_per_kwh','numeric',0.50,[0 5],true), ...
+                    makeCfgField('RTP base','pricing.rtp_base_egp','numeric',0.65,[0 5],true), ...
+                    makeCfgField('RTP vol','pricing.rtp_volatility','numeric',0.30,[0 2],true), ...
+                    makeCfgField('CPP add','pricing.cpp_adder_egp_per_kwh','numeric',1.50,[0 10],true), ...
+                    makeCfgField('Summer mult','pricing.seasonal_summer_multiplier','numeric',1.30,[0.5 3],true)];
+            case 'HVAC'
+                fields = [ ...
+                    makeCfgField('Use HVAC','hvac.use','logical',true), ...
+                    makeCfgField('Summer C','hvac.summer_setpoint_c','numeric',24,[18 30],true), ...
+                    makeCfgField('Winter C','hvac.winter_setpoint_c','numeric',20,[15 26],true), ...
+                    makeCfgField('Band C','hvac.delta_comfort_band_c','numeric',2,[0.5 6],true), ...
+                    makeCfgField('Power kW','hvac.power_per_unit_kw','numeric',1.75,[0.5 5],true)];
+        end
+    end
+
+    function onDynamicConfigControlChanged(app, src)
+        % ONDYNAMICCONFIGCONTROLCHANGED Apply a dynamic config edit immediately.
+        try
+            f = src.UserData;
+            value = src.Value;
+            app.cfg = setNestedConfigValue(app.cfg, f.path, value);
+            if strcmp(f.path, 'ev.penetration_rate')
+                app.ConfigEvPenSlider.Value = 100 * value;
+                app.ConfigEvPenValueLabel.Text = sprintf('%.0f%%', 100 * value);
+            elseif strcmp(f.path, 'dsm.comfort_ci_threshold')
+                app.ConfigComfortThresholdSlider.Value = value;
+            end
+            log(app, sprintf('Config updated: %s = %s', f.path, valueToText(value)));
+        catch ME
+            log(app, sprintf('Dynamic config update failed: %s', ME.message));
+        end
+    end
+
+    function syncDynamicConfigControls(app)
+        % SYNCDYNAMICCONFIGCONTROLS Re-apply current dynamic controls before saving.
+        if isempty(app.ConfigDynamicControls), return; end
+        for k = 1:numel(app.ConfigDynamicControls)
+            h = app.ConfigDynamicControls{k};
+            if isempty(h) || ~isvalid(h), continue; end
+            try
+                f = h.UserData;
+                app.cfg = setNestedConfigValue(app.cfg, f.path, h.Value);
+            catch
+            end
+        end
+    end
+
+    function styleAllAxes(app)
+        % STYLEALLAXES Apply the app plot theme to every axes under the UI.
+        try
+            axList = findall(app.UIFigure, 'Type', 'axes');
+            for k = 1:numel(axList)
+                style_app_axes(axList(k), app.Theme);
+            end
+        catch
+        end
+    end
+
+    function startClockTimer(app)
+        % STARTCLOCKTIMER Keep the bottom status clock alive while the app is idle.
+        try
+            stopClockTimer(app);
+            app.ClockTimer = timer('ExecutionMode', 'fixedSpacing', ...
+                'Period', 1.0, 'BusyMode', 'drop', ...
+                'TimerFcn', @(~, ~) tickClock(app));
+            start(app.ClockTimer);
+        catch ME
+            log(app, sprintf('Clock timer could not start: %s', ME.message));
+        end
+    end
+
+    function stopClockTimer(app)
+        % STOPCLOCKTIMER Stop and delete the UI clock timer.
+        try
+            if ~isempty(app.ClockTimer) && isvalid(app.ClockTimer)
+                stop(app.ClockTimer);
+                delete(app.ClockTimer);
+            end
+        catch
+        end
+        app.ClockTimer = [];
+    end
+
+    function tickClock(app)
+        % TICKCLOCK Refresh clock/status text without changing the current stage.
+        try
+            if isempty(app.UIFigure) || ~isvalid(app.UIFigure) || isempty(app.StatusBar) || ~isvalid(app.StatusBar)
+                return;
+            end
+            app.StatusBar.Text = sprintf('%s | View: %s | %s', ...
+                datestr(now, 'HH:MM:SS'), app.Theme.nav.labels{app.active_view}, app.LastStatusMessage);
+            app.ProgressBar.Text = progressText(app.LastProgressPct);
+            app.ProgressLabel.Text = sprintf('Stage: %s', app.LastProgressStage);
+        catch
+        end
+    end
+
+    function loadSavedUiState(app)
+        % LOADSAVEDUISTATE Restore last lean scenario results and status if available.
+        if isempty(app.cfg) || ~isfield(app.cfg, 'output_dir')
+            return;
+        end
+        try
+            resultFile = fullfile(app.cfg.output_dir, 'scenario_results.mat');
+            if isfile(resultFile)
+                S = load(resultFile, 'all_results');
+                if isfield(S, 'all_results')
+                    app.all_results = S.all_results;
+                    app.all_results_ready = true;
+                    for sid = [-1 0 1 2 3 4 5 6]
+                        idx = scenarioResultIndex(sid);
+                        if idx <= numel(app.all_results) && ~isempty(app.all_results{idx})
+                            r = app.all_results{idx};
+                            if isstruct(r) && isfield(r, 'error')
+                                updateScenarioCardStatus(app, sid, 'failed');
+                            else
+                                updateScenarioCardStatus(app, sid, 'complete');
+                            end
+                        end
+                    end
+                    rLast = getLatestScenarioResult(app);
+                    if ~isempty(rLast)
+                        updateDashboardFromScenario(app, rLast);
+                        updateScenarioLivePlot(app, rLast);
+                    end
+                    refreshResultsView(app);
+                    log(app, sprintf('Restored saved scenario results from %s', resultFile));
+                end
+            end
+        catch ME
+            log(app, sprintf('Saved UI state restore warning: %s', ME.message));
+        end
+    end
+
+    function saveUiState(app)
+        % SAVEUISTATE Persist lightweight UI state for reopening the app later.
+        try
+            if isempty(app.cfg) || ~isfield(app.cfg, 'output_dir')
+                return;
+            end
+            if exist(app.cfg.output_dir, 'dir') ~= 7
+                mkdir(app.cfg.output_dir);
+            end
+            ui_state = struct(); %#ok<NASGU>
+            ui_state.saved_on = datestr(now, 31);
+            ui_state.active_view = app.active_view;
+            ui_state.last_status_message = app.LastStatusMessage;
+            ui_state.last_progress_pct = app.LastProgressPct;
+            ui_state.last_progress_stage = app.LastProgressStage;
+            ui_state.all_results_ready = app.all_results_ready;
+            save(fullfile(app.cfg.output_dir, 'ui_app_state.mat'), 'ui_state', '-v7');
+        catch ME
+            log(app, sprintf('UI state save warning: %s', ME.message));
+        end
+    end
+
+    function r = getLatestScenarioResult(app)
+        % GETLATESTSCENARIORESULT Return the latest non-empty retained scenario result.
+        r = [];
+        try
+            if isempty(app.all_results)
+                return;
+            end
+            for k = numel(app.all_results):-1:1
+                if ~isempty(app.all_results{k}) && isstruct(app.all_results{k}) && ~isfield(app.all_results{k}, 'error')
+                    r = app.all_results{k};
+                    if isfield(r, 'fast')
+                        r = r.fast;
+                    elseif isfield(r, 'slow')
+                        r = r.slow;
+                    end
+                    return;
+                end
+            end
+        catch
+            r = [];
+        end
     end
 
     function setLamp(app, lampName, isOk)
@@ -2836,3 +3235,131 @@ for k = 1:numel(rates)
     prevUpper = upper;
 end
 end
+
+
+function data = flattenStructForUi(section, groupName)
+% FLATTENSTRUCTFORUI Convert simple config fields to a two-column cell table.
+if nargin < 2, groupName = 'Config'; end
+if ~isstruct(section)
+    data = {groupName, valueToUiString(section)};
+    return;
+end
+fields = fieldnames(section);
+rows = {};
+for i = 1:numel(fields)
+    f = fields{i};
+    v = section.(f);
+    if isstruct(v)
+        sub = fieldnames(v);
+        for j = 1:numel(sub)
+            rows(end+1,:) = {sprintf('%s.%s', f, sub{j}), valueToUiString(v.(sub{j}))}; %#ok<AGROW>
+        end
+    else
+        rows(end+1,:) = {f, valueToUiString(v)}; %#ok<AGROW>
+    end
+end
+if isempty(rows)
+    data = {'No scalar values', ''};
+else
+    data = rows;
+end
+end
+
+function s = valueToUiString(v)
+% VALUETOUISTRING Render a MATLAB value for table display.
+try
+    if ischar(v)
+        s = v;
+    elseif isstring(v)
+        s = char(strjoin(v(:)', ', '));
+    elseif islogical(v) && isscalar(v)
+        s = char(string(v));
+    elseif isnumeric(v)
+        if isscalar(v)
+            s = sprintf('%.6g', v);
+        else
+            flat = v(:)';
+            maxN = min(numel(flat), 8);
+            s = mat2str(flat(1:maxN), 5);
+            if numel(flat) > maxN
+                s = [s, ' ...'];
+            end
+        end
+    elseif iscell(v)
+        maxN = min(numel(v), 6);
+        tmp = cell(1, maxN);
+        for k = 1:maxN
+            tmp{k} = valueToUiString(v{k});
+        end
+        s = strjoin(tmp, ', ');
+        if numel(v) > maxN, s = [s, ' ...']; end
+    else
+        s = class(v);
+    end
+catch
+    s = '<unavailable>';
+end
+end
+
+
+function f = makeCfgField(label, path, typeName, defaultValue, limits, slider)
+% MAKECFGFIELD Construct a config control descriptor.
+if nargin < 5, limits = []; end
+if nargin < 6, slider = false; end
+f = struct('label', label, 'path', path, 'type', typeName, ...
+    'defaultValue', defaultValue, 'limits', limits, 'slider', slider);
+end
+
+function value = getNestedConfigValue(cfg, pathStr, defaultValue)
+% GETNESTEDCONFIGVALUE Resolve dotted config path with fallback.
+value = defaultValue;
+try
+    parts = strsplit(pathStr, '.');
+    tmp = cfg;
+    for k = 1:numel(parts)
+        tmp = tmp.(parts{k});
+    end
+    value = tmp;
+catch
+end
+end
+
+function cfg = setNestedConfigValue(cfg, pathStr, value)
+% SETNESTEDCONFIGVALUE Set a dotted path in a nested config struct.
+parts = strsplit(pathStr, '.');
+if numel(parts) == 1
+    cfg.(parts{1}) = value;
+elseif numel(parts) == 2
+    cfg.(parts{1}).(parts{2}) = value;
+elseif numel(parts) == 3
+    cfg.(parts{1}).(parts{2}).(parts{3}) = value;
+else
+    error('Only dotted paths up to 3 levels are supported: %s', pathStr);
+end
+end
+
+function txt = valueToText(value)
+% VALUETOTEXT Render a scalar value for log messages.
+try
+    if isnumeric(value) || islogical(value)
+        if isscalar(value)
+            txt = sprintf('%.6g', double(value));
+        else
+            txt = mat2str(value);
+        end
+    else
+        txt = char(string(value));
+    end
+catch
+    txt = '<value>';
+end
+end
+
+function txt = progressText(pct)
+% PROGRESSTEXT Build a stable text progress bar.
+pct = max(0, min(100, round(pct)));
+nBlocks = 20;
+nFill = round(nBlocks * pct / 100);
+txt = ['[', repmat('#', 1, nFill), repmat('-', 1, nBlocks - nFill), sprintf('] %3d%%', pct)];
+end
+

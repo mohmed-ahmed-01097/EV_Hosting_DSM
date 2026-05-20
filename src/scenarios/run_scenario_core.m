@@ -73,15 +73,15 @@ switch lower(mode.dispatch_mode)
         comfortValues = nan(H, 1);
 
     case 'rule_based'
-        [L_house_w, schedules, comfortValues] = apply_household_scheduling(base, cfg, assignment, price, mode, 'rule_based');
+        [L_house_w, schedules, comfortValues] = apply_household_scheduling(base, cfg, assignment, price, mode, 'rule_based', progress_cb, scenario_id);
 
     case 'milp_ev_only'
         evOnlyMode = mode;
         evOnlyMode.schedule_flexible_loads = false;
-        [L_house_w, schedules, comfortValues] = apply_household_scheduling(base, cfg, assignment, price, evOnlyMode, 'milp');
+        [L_house_w, schedules, comfortValues] = apply_household_scheduling(base, cfg, assignment, price, evOnlyMode, 'milp', progress_cb, scenario_id);
 
     case {'milp', 'milp_v2g'}
-        [L_house_w, schedules, comfortValues] = apply_household_scheduling(base, cfg, assignment, price, mode, 'milp');
+        [L_house_w, schedules, comfortValues] = apply_household_scheduling(base, cfg, assignment, price, mode, 'milp', progress_cb, scenario_id);
 
     case 'supervised_milp'
         [L_house_w, schedules, comfortValues] = apply_supervised_scheduling(base, cfg, assignment, net, price, mode, progress_cb);
@@ -96,7 +96,7 @@ L_house_w = max(0, L_house_w);
 progress_cb(50, sprintf('Scenario %g: running power flow...', scenario_id));
 drawnow('limitrate');
 [S_series, L_feeder_w] = assemble_feeder_power_series(L_house_w, assignment, net, cfg);
-[pq_timeseries, pq_summary] = evaluate_scenario_pq(S_series, net, assignment, cfg);
+[pq_timeseries, pq_summary] = evaluate_scenario_pq(S_series, net, assignment, cfg, progress_cb, scenario_id);
 
 if mode.ev_enabled
     L_ev_per_bus = estimate_ev_harmonic_power_per_bus(cfg, assignment, net, L_house_w, mode);
@@ -264,8 +264,12 @@ end
 price = double(price(:));
 end
 
-function [L_house_w, schedules, comfortValues] = apply_household_scheduling(base, cfg, assignment, price, mode, controller)
+function [L_house_w, schedules, comfortValues] = apply_household_scheduling(base, cfg, assignment, price, mode, controller, progress_cb, scenario_id)
 % APPLY_HOUSEHOLD_SCHEDULING Run household controllers day by day.
+if nargin < 7 || isempty(progress_cb) || ~isa(progress_cb, 'function_handle')
+    progress_cb = @(pct, msg) [];
+end
+if nargin < 8, scenario_id = NaN; end
 [T, H] = size(base.L_house_w);
 stepsPerDay = 24 * 60 / cfg.simulation.dt_min;
 numDays = ceil(T / stepsPerDay);
@@ -277,6 +281,8 @@ for day = 1:numDays
     W = numel(idx);
     priceDay = price(idx);
     fprintf('[run_scenario_core] Scheduling day %d/%d with %s controller\n', day, numDays, controller);
+    progress_cb(10 + round(35 * (day-1) / max(numDays,1)), sprintf('Scenario %g: scheduling day %d/%d (%s)', scenario_id, day, numDays, controller));
+    drawnow('limitrate');
     for h = 1:H
         hh = build_daily_household(base, assignment, cfg, h, idx, day, mode);
         if strcmpi(controller, 'rule_based')
@@ -287,6 +293,10 @@ for day = 1:numDays
         L_house_w(idx, h) = resize_vector(sch.p_total_w, W, 0);
         schedules{h, day} = strip_large_problem_field(sch);
         comfortValues(h, day) = sch.comfort_idx;
+        if mod(h, max(1, round(H/5))) == 0
+            progress_cb(10 + round(35 * ((day-1) + h/H) / max(numDays,1)), sprintf('Scenario %g: scheduling day %d/%d, household %d/%d', scenario_id, day, numDays, h, H));
+            drawnow('limitrate');
+        end
     end
 end
 comfortValues = comfortValues(:);
@@ -542,8 +552,12 @@ for h = 1:H
 end
 end
 
-function [pq_timeseries, summary] = evaluate_scenario_pq(S_series, net, assignment, cfg)
+function [pq_timeseries, summary] = evaluate_scenario_pq(S_series, net, assignment, cfg, progress_cb, scenario_id)
 % EVALUATE_SCENARIO_PQ Run BFS and PQ index calculation for every scenario step.
+if nargin < 5 || isempty(progress_cb) || ~isa(progress_cb, 'function_handle')
+    progress_cb = @(pct, msg) [];
+end
+if nargin < 6, scenario_id = NaN; end
 T = size(S_series, 3);
 pq_timeseries = cell(T, 1);
 maxVuf = 0;
@@ -569,6 +583,10 @@ for t = 1:T
     lossKvar(t) = pq.Qloss_kvar;
     nonConv(t) = ~ok;
     viol(t) = ~ok || pq.violations.vuf || pq.violations.voltage || pq.violations.loading || pq.violations.iuf || pq.violations.ncr;
+    if mod(t, max(1, round(T/100))) == 0 || t == T
+        progress_cb(50 + round(25 * t / max(T,1)), sprintf('Scenario %g: power flow step %d/%d | Vmin=%.3f pu | VUF=%.2f%%', scenario_id, t, T, minVoltage, maxVuf));
+        drawnow('limitrate');
+    end
 end
 summary = struct();
 summary.max_vuf_pct = maxVuf;

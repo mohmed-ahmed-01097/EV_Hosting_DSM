@@ -27,9 +27,10 @@ end
 
 fig = figure('Name', char(string(plotType)), ...
     'NumberTitle', 'off', ...
-    'Color', [1, 1, 1], ...
+    'Color', [0.07, 0.08, 0.12], ...
     'Position', [100, 100, 950, 620]);
 ax = axes(fig);
+style_app_axes(ax);
 
 switch lower(char(string(plotType)))
     case 'load_profile'
@@ -86,7 +87,8 @@ grid(ax, 'on');
 xlabel(ax, 'Hour');
 ylabel(ax, 'EGP/kWh');
 title(ax, '24-hour Tariff Curves');
-legend(ax, 'Location', 'best');
+legend(ax, 'Location', 'northoutside', 'Orientation', 'horizontal');
+style_app_axes(ax);
 xlim(ax, [0 24]);
 hold(ax, 'off');
 end

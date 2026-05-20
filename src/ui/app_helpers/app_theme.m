@@ -15,21 +15,22 @@ function theme = app_theme()
 %   app.UIFigure.Color = theme.colors.bg_dark;
 
 % --- Section 1: Colors ---
-theme.colors.bg_dark    = [0.10, 0.10, 0.18];
-theme.colors.bg_panel   = [0.13, 0.13, 0.22];
-theme.colors.bg_card    = [0.16, 0.16, 0.27];
-theme.colors.accent     = [0.00, 0.71, 0.85];
+theme.colors.bg_dark    = [0.07, 0.08, 0.12];
+theme.colors.bg_panel   = [0.10, 0.11, 0.17];
+theme.colors.bg_card    = [0.13, 0.15, 0.22];
+theme.colors.plot_bg    = [0.08, 0.09, 0.14];
+theme.colors.accent     = [0.00, 0.62, 0.78];
 theme.colors.success    = [0.16, 0.67, 0.44];
 theme.colors.warning    = [0.97, 0.75, 0.00];
 theme.colors.danger     = [0.84, 0.16, 0.16];
-theme.colors.text_light = [0.92, 0.92, 0.95];
-theme.colors.text_muted = [0.65, 0.67, 0.74];
-theme.colors.grid       = [0.30, 0.32, 0.40];
+theme.colors.text_light = [0.94, 0.96, 0.98];
+theme.colors.text_muted = [0.68, 0.72, 0.82];
+theme.colors.grid       = [0.35, 0.39, 0.50];
 
 % --- Section 2: Fonts ---
 theme.font.name       = 'Segoe UI';
 theme.font.mono       = 'Consolas';
-theme.font.title_size = 18;
+theme.font.title_size = 20;
 theme.font.h1_size    = 16;
 theme.font.h2_size    = 13;
 theme.font.body_size  = 11;
