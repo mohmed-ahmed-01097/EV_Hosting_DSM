@@ -722,18 +722,20 @@ methods (Access = private)
         uibutton(csvCard, 'push', 'Text', 'Open Tables Folder', ...
             'Position', [205 32 150 32], 'ButtonPushedFcn', @(~, ~) onOpenResultsFolder(app));
 
-        latexCard = makeCard(app, p, 'LaTeX Thesis Report', [24 95 1100 150]);
+        latexCard = makeCard(app, p, 'PDF / LaTeX Thesis Report', [24 95 1100 150]);
         addSmallLabel(app, latexCard, 'Author', [24 82 65 22]);
         app.ExportAuthorEdit = uieditfield(latexCard, 'text', 'Value', 'Mohammed Ahmed', ...
             'Position', [90 82 220 28]);
         addSmallLabel(app, latexCard, 'Date', [335 82 45 22]);
         app.ExportDateEdit = uieditfield(latexCard, 'text', 'Value', datestr(now, 'yyyy-mm'), ...
             'Position', [380 82 120 28]);
-        uibutton(latexCard, 'push', 'Text', 'Generate LaTeX .tex', 'FontWeight', 'bold', ...
-            'Position', [525 82 165 30], 'ButtonPushedFcn', @(~, ~) onGenerateLatexReport(app));
+        uibutton(latexCard, 'push', 'Text', 'Generate PDF Report', 'FontWeight', 'bold', ...
+            'Position', [525 82 170 30], 'ButtonPushedFcn', @(~, ~) onGeneratePdfReport(app));
+        uibutton(latexCard, 'push', 'Text', 'Generate LaTeX .tex', ...
+            'Position', [710 82 170 30], 'ButtonPushedFcn', @(~, ~) onGenerateLatexReport(app));
         app.ExportLatexStatusText = uitextarea(latexCard, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
             'FontSize', 10, 'FontColor', c.text_light, 'BackgroundColor', [0.07 0.07 0.12], ...
-            'Position', [24 15 1040 52], 'Value', {'Generate a LaTeX include file after exporting figures/tables.'});
+            'Position', [24 15 1040 52], 'Value', {'Generate a modern PDF report or a LaTeX include file after exporting figures/tables.'});
 
         statusCard = makeCard(app, p, 'Export Log', [24 24 1100 55]);
         app.ExportStatusText = uitextarea(statusCard, 'Editable', 'off', 'FontName', app.Theme.font.mono, ...
@@ -2179,6 +2181,35 @@ methods (Access = private)
         catch ME
             app.ExportStatusText.Value = {sprintf('CSV export failed: %s', ME.message)};
             log(app, sprintf('CSV export failed: %s', ME.message));
+        end
+    end
+
+    function onGeneratePdfReport(app)
+        % ONGENERATEPDFREPORT Generate a full scenario PDF report.
+        try
+            [results, ~, ~] = getUiResults(app);
+            if isempty(results)
+                app.ExportLatexStatusText.Value = {'No scenario results found. Run scenarios first before generating PDF.'};
+                log(app, 'PDF report skipped: no scenario results available.');
+                return;
+            end
+            opts = buildExportOptions(app);
+            opts.name = 'ev_dsm_full_scenario_report';
+            opts.author = app.ExportAuthorEdit.Value;
+            opts.report_date = app.ExportDateEdit.Value;
+            opts.selected_figures = getSelectedExportFigures(app, true);
+            opts.formats = {'pdf'};
+            outFile = app_export_helper('pdf_report', results, app.cfg, opts);
+            if ~isfield(app.SimState, 'last_export') || ~isstruct(app.SimState.last_export)
+                app.SimState.last_export = struct();
+            end
+            app.SimState.last_export.pdf_report = outFile;
+            app.ExportLatexStatusText.Value = {'Generated PDF report:', outFile, ...
+                'Contents: used configuration, scenario KPI tables, cost summary, and thesis plots.'};
+            log(app, sprintf('Generated PDF report: %s', outFile));
+        catch ME
+            app.ExportLatexStatusText.Value = {sprintf('PDF report failed: %s', ME.message)};
+            log(app, sprintf('PDF report failed: %s', ME.message));
         end
     end
 

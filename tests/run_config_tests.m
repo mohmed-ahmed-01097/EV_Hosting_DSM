@@ -49,6 +49,8 @@ test_part_b_step15_tests_view();
 test_part_b_step16_build_exe();
 test_part_b_ui_professional_patch();
 test_part_b_ui_table_config_state_patch();
+test_part_b_pdf_export_report();
+test_pdf_report_and_results_sanity_patch();
 
-fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables, Phase 10 PART A, PART B Step 9 UI scaffold, and PART B Step 10 app skeleton, PART B Step 11 core UI views, PART B Step 12 scenario execution UI, PART B Step 13 Results UI, and PART B Step 14 Export UI, PART B Step 15 Tests UI, PART B Step 16 build EXE script, the UI professional responsiveness patch, and the UI table/config/state patch are valid.\n');
+fprintf('\n[run_config_tests] Step 1 + Phase 0 through Phase 9 deliverables, Phase 10 PART A, PART B Step 9 UI scaffold, and PART B Step 10 app skeleton, PART B Step 11 core UI views, PART B Step 12 scenario execution UI, PART B Step 13 Results UI, and PART B Step 14 Export UI, PART B Step 15 Tests UI, PART B Step 16 build EXE script, the UI professional responsiveness patch, the UI table/config/state patch, the PDF full-report export patch, and the PDF/results sanity patch are valid.\n');
 end

@@ -5,3 +5,4 @@ results/tables/*
 data/weather/*.csv
 !**/.gitkeep
 /results/
+/exe/

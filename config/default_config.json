@@ -100,7 +100,8 @@
       "Iron": 1.2
     },
     "lambda_comfort": 0.001,
-    "comfort_ci_threshold": 0.3
+    "comfort_ci_threshold": 0.3,
+    "local_peak_limit_multiplier": 1.05
   },
   "pricing": {
     "active_methods": [
@@ -204,5 +205,17 @@
     "store_price_series": false,
     "store_l_feeder_w": true,
     "use_single_precision_for_saved_timeseries": true
+  },
+  "calibration": {
+    "_comment": "Feeder/load calibration used to keep the no-EV baseline within physically plausible planning limits before EV stress scenarios are evaluated.",
+    "enable_feeder_load_calibration": true,
+    "target_baseline_loading_pct": 80.0,
+    "target_baseline_vmin_pu": 0.95,
+    "min_load_scale": 0.25,
+    "max_load_scale": 1.0,
+    "sample_steps": 120,
+    "apply_to_hvac": true,
+    "apply_to_controllable": true,
+    "apply_to_fixed": true
   }
 }

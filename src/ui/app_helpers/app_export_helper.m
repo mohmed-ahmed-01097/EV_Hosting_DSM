@@ -6,7 +6,7 @@ function out = app_export_helper(exportType, data, cfg, opts)
 %
 % Inputs:
 %   exportType - Export mode:
-%                'figure_png', 'figure_eps', 'table_csv', 'latex_report',
+%                'figure_png', 'figure_eps', 'table_csv', 'latex_report', 'pdf_report',
 %                'figures_selected', or 'tables_selected'
 %   data       - Figure handle, table, scenario results, or report struct
 %   cfg        - Project configuration struct
@@ -51,6 +51,9 @@ switch lower(char(string(exportType)))
         outDir = get_results_dir(cfg, opts);
         out = fullfile(outDir, [name, '.tex']);
         export_latex_report(data, out, opts);
+
+    case 'pdf_report'
+        out = app_pdf_report(data, cfg, opts);
 
     case 'figures_selected'
         out = export_selected_figures(data, cfg, opts);

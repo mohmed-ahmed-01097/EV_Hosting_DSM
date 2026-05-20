@@ -532,3 +532,39 @@ Validate with:
 test_part_b_ui_professional_patch()
 launch_app()
 ```
+
+## UI PDF Full Report Export
+
+The Export view now supports a modern full PDF report generated directly from scenario results. The report includes used configurations, scenario KPI tables, cost and comfort summaries, retained load-profile plots, and scenario comparison figures.
+
+Generate from the app:
+
+```matlab
+launch_app()
+```
+
+Then run scenarios and click **Export > Generate PDF Report**.
+
+Generate from MATLAB:
+
+```matlab
+outFile = app_pdf_report(all_results, cfg, struct('name','ev_dsm_full_scenario_report'));
+```
+
+Validate with:
+
+```matlab
+test_part_b_pdf_export_report()
+```
+
+PDF reports are saved under:
+
+```text
+results/reports/
+```
+
+## Latest patch: PDF report and results sanity fix
+
+The PDF report was updated to use a cleaner modern layout, explicit annual/monthly bill labels, and an automatic sanity-review page. The scenario engine now applies configurable feeder-aware base-load calibration before EV stress is added, and DSM scheduling includes a local peak guard to reduce rebound peaks.
+
+After applying this patch, delete old `results/scenario_results.mat` and rerun scenarios before generating a new PDF report.

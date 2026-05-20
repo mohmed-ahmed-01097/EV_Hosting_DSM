@@ -47,6 +47,7 @@ tvec = cfg.simulation.tvec_min(1:T);
 cal_eval = slice_calendar(cal_struct, T);
 weather_eval = slice_weather(weather, T); %#ok<NASGU>
 base = normalize_population_matrices(pop, T, H);
+base = apply_feeder_load_calibration_if_needed(base, cfg, assignment, net, progress_cb);
 
 fprintf('[run_scenario_core] Scenario %g: %s | T=%d | H=%d | mode=%s\n', ...
     scenario_id, description, T, H, mode.dispatch_mode);
@@ -192,6 +193,82 @@ end
 if numel(base.flexibility) < H
     base.flexibility(end+1:H, 1) = {empty_flexibility()};
 end
+end
+
+
+function base = apply_feeder_load_calibration_if_needed(base, cfg, assignment, net, progress_cb)
+% APPLY_FEEDER_LOAD_CALIBRATION_IF_NEEDED Scale survey-derived base loads to a plausible feeder baseline.
+%
+% The legacy survey data can generate very high coincident summer HVAC peaks.
+% Without calibration, the no-EV baseline may already violate voltage and
+% transformer-loading limits, which makes EV hosting capacity permanently zero
+% and hides the actual DSM/EV contribution. This calibration is deliberately
+% applied only to the behavior-driven base load. Scenario EV charging power is
+% not scaled.
+if nargin < 5 || isempty(progress_cb) || ~isa(progress_cb, 'function_handle')
+    progress_cb = @(pct, msg) [];
+end
+if ~isfield(cfg, 'calibration') || ~get_nested_logical_local(cfg.calibration, 'enable_feeder_load_calibration', false)
+    base.calibration = struct('enabled', false, 'scale_factor', 1.0, 'reason', 'disabled');
+    return;
+end
+if isfield(base, 'calibration') && isfield(base.calibration, 'applied') && base.calibration.applied
+    return;
+end
+[T, ~] = size(base.L_house_w);
+sampleN = round(get_nested_number_local(cfg.calibration, 'sample_steps', 120));
+sampleN = max(24, min(T, sampleN));
+steps = sample_steps_for_hosting(base.L_house_w, sampleN);
+if isempty(steps)
+    base.calibration = struct('enabled', true, 'applied', false, 'scale_factor', 1.0, 'reason', 'empty sample');
+    return;
+end
+try
+    [S0, ~] = assemble_feeder_power_series(base.L_house_w(steps, :), assignment, net, cfg);
+    [~, summary0] = evaluate_scenario_pq(S0, net, assignment, cfg);
+catch ME
+    warning('run_scenario_core:calibrationEval', 'Baseline calibration evaluation failed: %s', ME.message);
+    base.calibration = struct('enabled', true, 'applied', false, 'scale_factor', 1.0, 'reason', ME.message);
+    return;
+end
+targetTL = get_nested_number_local(cfg.calibration, 'target_baseline_loading_pct', 80.0);
+targetV  = get_nested_number_local(cfg.calibration, 'target_baseline_vmin_pu', 0.95);
+minScale = get_nested_number_local(cfg.calibration, 'min_load_scale', 0.25);
+maxScale = get_nested_number_local(cfg.calibration, 'max_load_scale', 1.0);
+scaleFromTL = 1.0;
+if isfinite(summary0.max_loading_pct) && summary0.max_loading_pct > targetTL
+    scaleFromTL = 0.98 * targetTL / max(summary0.max_loading_pct, eps);
+end
+scaleFromV = 1.0;
+if isfinite(summary0.min_voltage_pu) && summary0.min_voltage_pu < targetV
+    actualDrop = max(1e-6, 1.0 - summary0.min_voltage_pu);
+    targetDrop = max(1e-6, 1.0 - targetV);
+    scaleFromV = 0.98 * targetDrop / actualDrop;
+end
+scale = max(minScale, min([maxScale, scaleFromTL, scaleFromV]));
+if ~isfinite(scale) || scale <= 0
+    scale = 1.0;
+end
+base.calibration = struct();
+base.calibration.enabled = true;
+base.calibration.applied = scale < 0.999;
+base.calibration.scale_factor = scale;
+base.calibration.pre_max_loading_pct = summary0.max_loading_pct;
+base.calibration.pre_min_voltage_pu = summary0.min_voltage_pu;
+base.calibration.target_loading_pct = targetTL;
+base.calibration.target_vmin_pu = targetV;
+base.calibration.sample_steps = numel(steps);
+if scale < 0.999
+    if get_nested_logical_local(cfg.calibration, 'apply_to_fixed', true), base.L_fixed_w = base.L_fixed_w * scale; end
+    if get_nested_logical_local(cfg.calibration, 'apply_to_controllable', true), base.L_ctrl_w = base.L_ctrl_w * scale; end
+    if get_nested_logical_local(cfg.calibration, 'apply_to_hvac', true), base.L_hvac_w = base.L_hvac_w * scale; end
+    base.L_house_w = base.L_house_w * scale;
+    progress_cb(7, sprintf('Applied feeder load calibration scale %.3f (baseline TL %.1f%%, Vmin %.3f pu)', scale, summary0.max_loading_pct, summary0.min_voltage_pu));
+    fprintf('[run_scenario_core] Applied feeder load calibration scale %.3f | pre TL=%.1f%% | pre Vmin=%.3f pu\n', scale, summary0.max_loading_pct, summary0.min_voltage_pu);
+else
+    progress_cb(7, sprintf('Feeder load calibration not needed (baseline TL %.1f%%, Vmin %.3f pu)', summary0.max_loading_pct, summary0.min_voltage_pu));
+end
+drawnow('limitrate');
 end
 
 function M = resize_matrix_field(s, fieldName, T, H, defaultValue)
@@ -343,6 +420,7 @@ else
     hh.p_controllable_w = zeros(W, 1);
 end
 hh.p_hvac_w = resize_vector(base.L_hvac_w(idx, h), W, 0);
+hh.p_original_total_w = resize_vector(base.L_house_w(idx, h), W, 0);
 hh.p_total_w = hh.p_fixed_w + hh.p_controllable_w;
 hh.phase_id = assignment.phase_id(h);
 hh.zone = assignment.zone(h);
@@ -895,5 +973,37 @@ function value = getfield_safe(s, field1, field2, defaultValue)
 value = defaultValue;
 if isstruct(s) && isfield(s, field1) && isstruct(s.(field1)) && isfield(s.(field1), field2)
     value = s.(field1).(field2);
+end
+end
+
+
+function v = get_nested_number_local(s, fieldName, defaultValue)
+% GET_NESTED_NUMBER_LOCAL Return scalar numeric field with default.
+v = defaultValue;
+try
+    if isstruct(s) && isfield(s, fieldName) && isnumeric(s.(fieldName)) && isscalar(s.(fieldName))
+        v = double(s.(fieldName));
+    end
+catch
+    v = defaultValue;
+end
+end
+
+function tf = get_nested_logical_local(s, fieldName, defaultValue)
+% GET_NESTED_LOGICAL_LOCAL Return logical field with default.
+tf = defaultValue;
+try
+    if isstruct(s) && isfield(s, fieldName)
+        raw = s.(fieldName);
+        if islogical(raw)
+            tf = logical(raw);
+        elseif isnumeric(raw)
+            tf = raw ~= 0;
+        elseif ischar(raw) || isstring(raw)
+            tf = any(strcmpi(char(string(raw)), {'true','1','yes','on'}));
+        end
+    end
+catch
+    tf = defaultValue;
 end
 end
